@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from heating_prices.models import FuelPrice, heat_price
+from heating_prices.models import FuelPrice, annual_costs, heat_demand_kwh, heat_price
 
 
 def weekly(
@@ -75,6 +75,68 @@ def test_single_point() -> None:
     price = oil([100.0])
     assert price.previous_price is None
     assert price.change_pct is None
+
+
+def _price(fuel: str, value: float) -> FuelPrice:
+    return FuelPrice(
+        fuel=fuel,
+        history=[(date(2026, 10, 1), value)],
+        source="test",
+        source_url="https://example.invalid",
+        attribution="test",
+    )
+
+
+PRICES = {
+    "heating_oil": _price("heating_oil", 175.0),  # 17.5 ct/kWh
+    "pellets": _price("pellets", 490.0),  # 10.0 ct/kWh
+    "natural_gas": _price("natural_gas", 11.5),  # 11.5 ct/kWh
+}
+
+
+@pytest.mark.parametrize(
+    ("fuel", "consumption", "kwh"),
+    [
+        ("heating_oil", 2500, 25000),
+        ("pellets", 5, 24500),
+        ("natural_gas", 20000, 20000),
+    ],
+)
+def test_heat_demand(fuel: str, consumption: float, kwh: float) -> None:
+    """Consumption in L, t or kWh is converted to kWh of heat."""
+    assert heat_demand_kwh(fuel, consumption) == pytest.approx(kwh)
+
+
+def test_annual_costs_at_market_prices() -> None:
+    """2,500 L of oil equal 25,000 kWh; pellets are cheapest."""
+    costs = annual_costs("heating_oil", 2500, PRICES)
+    assert costs is not None
+    assert costs.costs == {"heating_oil": 4375, "pellets": 2500, "natural_gas": 2875}
+    assert costs.current_cost == 4375
+    assert costs.cheapest == "pellets"
+    assert costs.savings == 1875
+
+
+def test_annual_costs_with_own_price() -> None:
+    """The user's own price is used for the fuel they heat with."""
+    costs = annual_costs("natural_gas", 20000, PRICES, own_price=9.0)
+    assert costs is not None
+    assert costs.current_cost == 1800
+    # Pellets at 10 ct/kWh cost 2,000 €, so the own gas tariff is cheapest.
+    assert costs.savings == 0
+
+
+def test_annual_costs_without_consumption() -> None:
+    """Zero consumption disables the calculator."""
+    assert annual_costs("pellets", 0, PRICES) is None
+
+
+def test_annual_costs_current_fuel_missing() -> None:
+    """Without a price for the current fuel there is nothing to save against."""
+    costs = annual_costs("heating_oil", 2500, {"pellets": PRICES["pellets"]})
+    assert costs is not None
+    assert costs.current_cost is None
+    assert costs.savings is None
 
 
 def test_round_trip() -> None:

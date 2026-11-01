@@ -41,6 +41,85 @@ def heat_price(fuel: str, price: float) -> float:
     raise ValueError(f"Unknown fuel {fuel}")
 
 
+def heat_demand_kwh(fuel: str, consumption: float) -> float:
+    """Heat content of an annual consumption in L (oil), t (pellets) or kWh (gas)."""
+    if fuel == FUEL_OIL:
+        return consumption * OIL_KWH_PER_LITRE
+    if fuel == FUEL_PELLETS:
+        return consumption * 1000 * PELLETS_KWH_PER_KG
+    if fuel == FUEL_GAS:
+        return consumption
+    raise ValueError(f"Unknown fuel {fuel}")
+
+
+@dataclass(slots=True)
+class AnnualCosts:
+    """What a year of heating costs with each fuel for the user's heat demand.
+
+    Boiler efficiencies are not taken into account, so the comparison shows
+    fuel costs for the same amount of heat content.
+    """
+
+    current_fuel: str
+    consumption: float
+    heat_kwh: float
+    # € per year at market prices, per enabled fuel.
+    costs: dict[str, int]
+    # € per year for the current fuel, at the user's own price if one is set.
+    current_cost: int | None
+    cheapest: str | None
+    # € per year saved by switching to the cheapest fuel.
+    savings: int | None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize for the websocket API and diagnostics."""
+        return {
+            "current_fuel": self.current_fuel,
+            "consumption": self.consumption,
+            "heat_kwh": round(self.heat_kwh),
+            "costs": self.costs,
+            "current_cost": self.current_cost,
+            "cheapest": self.cheapest,
+            "savings": self.savings,
+        }
+
+
+def annual_costs(
+    current_fuel: str,
+    consumption: float,
+    prices: dict[str, FuelPrice],
+    own_price: float | None = None,
+) -> AnnualCosts | None:
+    """Compare yearly costs of all fuels for the user's heat demand."""
+    if consumption <= 0:
+        return None
+    heat_kwh = heat_demand_kwh(current_fuel, consumption)
+    costs = {
+        fuel: round(heat_kwh * price.heat_price / 100) for fuel, price in prices.items()
+    }
+    if own_price:
+        current_cost: int | None = round(
+            heat_kwh * heat_price(current_fuel, own_price) / 100
+        )
+    else:
+        current_cost = costs.get(current_fuel)
+    cheapest = min(costs, key=costs.__getitem__) if costs else None
+    savings = (
+        max(0, current_cost - costs[cheapest])
+        if current_cost is not None and cheapest is not None
+        else None
+    )
+    return AnnualCosts(
+        current_fuel=current_fuel,
+        consumption=consumption,
+        heat_kwh=heat_kwh,
+        costs=costs,
+        current_cost=current_cost,
+        cheapest=cheapest,
+        savings=savings,
+    )
+
+
 @dataclass(slots=True)
 class FuelPrice:
     """Current price of one fuel with its history."""

@@ -4,7 +4,7 @@
  * per-kWh comparison. Data comes from the heating_prices integration.
  */
 
-const CARD_VERSION = "0.1.3";
+const CARD_VERSION = "0.2.0";
 const FUELS = ["heating_oil", "pellets", "natural_gas"];
 const RANGES = { "6m": 183, "1y": 365, "3y": 1096, max: Infinity };
 
@@ -32,6 +32,12 @@ const I18N = {
     avg: "Ø 12 M",
     heat_price: "Wärmepreis pro kWh",
     cheapest: "Am günstigsten",
+    per_year: "Kosten pro Jahr",
+    per_year_short: "pro Jahr",
+    your_consumption: "Dein Verbrauch",
+    currently: "aktuell",
+    savings_with: (fuel, amount) => `Mit ${fuel} ca. ${amount} € weniger pro Jahr`,
+    already_cheapest: "Du heizt bereits mit dem günstigsten Brennstoff.",
     own_price: "Dein Preis",
     below: "unter Markt",
     above: "über Markt",
@@ -64,6 +70,12 @@ const I18N = {
     avg: "Avg 12 M",
     heat_price: "Price per kWh of heat",
     cheapest: "Cheapest",
+    per_year: "Cost per year",
+    per_year_short: "per year",
+    your_consumption: "Your consumption",
+    currently: "currently",
+    savings_with: (fuel, amount) => `About ${amount} € less per year with ${fuel}`,
+    already_cheapest: "You already heat with the cheapest fuel.",
     own_price: "Your price",
     below: "below market",
     above: "above market",
@@ -289,12 +301,18 @@ class HeatingPricesCard extends HTMLElement {
   _comparison(fuels, t) {
     if (!this._config.show_comparison || fuels.length < 2) return "";
     const hass = this._hass;
+    const annual = this._data.annual;
     const rows = fuels.map((fuel) => ({ fuel, value: this._data.fuels[fuel].heat_price }));
     const max = Math.max(...rows.map((r) => r.value));
     const cheapest = this._data.cheapest;
+    const cost = (fuel) => {
+      if (!annual) return "";
+      const value = annual.costs?.[fuel];
+      return `<span class="bar-cost">${value == null ? "–" : `${number(hass, value, 0)} €`}</span>`;
+    };
     return `
-      <div class="compare">
-        <div class="section-title">${esc(t.heat_price)}</div>
+      <div class="compare ${annual ? "with-costs" : ""}">
+        <div class="section-title"><span>${esc(t.heat_price)}</span>${annual ? `<span class="section-hint">${esc(t.per_year)}</span>` : ""}</div>
         ${rows
           .sort((a, b) => a.value - b.value)
           .map(({ fuel, value }) => `
@@ -302,10 +320,29 @@ class HeatingPricesCard extends HTMLElement {
               <span class="bar-label"><ha-icon icon="${FUEL_STYLE[fuel].icon}"></ha-icon>${esc(t.fuels[fuel])}</span>
               <span class="bar"><span class="fill" style="width:${Math.max(4, (value / max) * 100).toFixed(1)}%"></span></span>
               <span class="bar-value">${number(hass, value)} ct</span>
+              ${cost(fuel)}
               ${fuel === cheapest ? `<span class="best-badge" title="${esc(t.cheapest)}"><ha-icon icon="mdi:trophy-outline"></ha-icon></span>` : `<span class="best-badge"></span>`}
             </div>`)
           .join("")}
+        ${annual ? this._annualSummary(annual, t) : ""}
       </div>`;
+  }
+
+  _annualSummary(annual, t) {
+    const hass = this._hass;
+    const unit = annual.consumption_unit;
+    const amount = `${number(hass, annual.consumption, unit === "t" ? 1 : 0)} ${unit} ${t.fuels[annual.current_fuel]}`;
+    let line = `${esc(t.your_consumption)}: <b>${esc(amount)}</b> ≈ ${number(hass, annual.heat_kwh, 0)} kWh`;
+    if (annual.current_cost != null) {
+      line += ` · ${esc(t.currently)} <b>${number(hass, annual.current_cost, 0)} €</b> ${esc(t.per_year_short)}`;
+    }
+    let saving = "";
+    if (annual.savings > 0 && annual.cheapest) {
+      saving = `<div class="saving"><ha-icon icon="mdi:piggy-bank-outline"></ha-icon>${esc(t.savings_with(t.fuels[annual.cheapest], number(hass, annual.savings, 0)))}</div>`;
+    } else if (annual.savings === 0) {
+      saving = `<div class="saving"><ha-icon icon="mdi:check-circle-outline"></ha-icon>${esc(t.already_cheapest)}</div>`;
+    }
+    return `<div class="annual">${line}${saving}</div>`;
   }
 
   _render() {
@@ -426,10 +463,22 @@ const STYLES = `
   .bar-value { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--primary-text-color); font-size: 0.9rem; text-align: right; }
   .best .bar-value { color: var(--success-color, #2e7d32); }
   .best-badge { color: var(--success-color, #2e7d32); --mdc-icon-size: 18px; display: inline-flex; }
+  .section-title { display: flex; justify-content: space-between; gap: 8px; }
+  .section-hint { text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .compare.with-costs .bar-row { grid-template-columns: 110px 1fr 4.8em 5.4em 22px; }
+  .bar-cost { font-variant-numeric: tabular-nums; color: var(--secondary-text-color); font-size: 0.85rem; text-align: right; }
+  .best .bar-cost { color: var(--success-color, #2e7d32); font-weight: 600; }
+  .annual { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--divider-color, rgba(127,127,127,.2)); font-size: 0.85rem; color: var(--secondary-text-color); line-height: 1.5; }
+  .annual b { color: var(--primary-text-color); font-variant-numeric: tabular-nums; }
+  .saving { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-weight: 600; color: var(--success-color, #2e7d32); --mdc-icon-size: 18px; }
   .footer { margin-top: 12px; font-size: 0.72rem; color: var(--secondary-text-color); }
   .footer a { color: inherit; }
   .empty { display: flex; align-items: center; gap: 8px; color: var(--secondary-text-color); padding: 8px 0; }
-  @media (max-width: 420px) { .value { font-size: 1.7rem; } .bar-row { grid-template-columns: 100px 1fr 4.8em 18px; gap: 8px; } }
+  @media (max-width: 420px) {
+    .value { font-size: 1.7rem; }
+    .bar-row { grid-template-columns: 100px 1fr 4.8em 18px; gap: 8px; }
+    .compare.with-costs .bar-row { grid-template-columns: 92px 1fr 4.2em 4.8em 18px; gap: 6px; }
+  }
 `;
 
 class HeatingPricesCardEditor extends HTMLElement {

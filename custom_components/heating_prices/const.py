@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "heating_prices"
-VERSION: Final = "0.1.3"
+VERSION: Final = "0.2.0"
 
 PROJECT_URL: Final = "https://github.com/F30onAir/ha-heating-prices"
 USER_AGENT: Final = f"HomeAssistant-HeatingPrices/{VERSION} (+{PROJECT_URL})"
@@ -23,6 +23,8 @@ CONF_GAS_BAND: Final = "gas_band"
 CONF_OWN_OIL_PRICE: Final = "own_oil_price"
 CONF_OWN_PELLET_PRICE: Final = "own_pellet_price"
 CONF_OWN_GAS_PRICE: Final = "own_gas_price"
+CONF_CURRENT_FUEL: Final = "current_fuel"
+CONF_ANNUAL_CONSUMPTION: Final = "annual_consumption"
 
 FUEL_OIL: Final = "heating_oil"
 FUEL_PELLETS: Final = "pellets"
@@ -44,6 +46,13 @@ FUEL_UNITS: Final = {
     FUEL_OIL: UNIT_OIL,
     FUEL_PELLETS: UNIT_PELLETS,
     FUEL_GAS: UNIT_GAS,
+}
+
+# Units of the annual consumption a user enters for the fuel they heat with.
+CONSUMPTION_UNITS: Final = {
+    FUEL_OIL: "L",
+    FUEL_PELLETS: "t",
+    FUEL_GAS: "kWh",
 }
 
 FUEL_ICONS: Final = {

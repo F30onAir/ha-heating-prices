@@ -19,9 +19,16 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, FUEL_UNITS, OWN_PRICE_KEYS, RATINGS, UNIT_HEAT
+from .const import (
+    CONSUMPTION_UNITS,
+    DOMAIN,
+    FUEL_UNITS,
+    OWN_PRICE_KEYS,
+    RATINGS,
+    UNIT_HEAT,
+)
 from .coordinator import HeatingPricesConfigEntry, HeatingPricesCoordinator
-from .models import FuelPrice
+from .models import AnnualCosts, FuelPrice
 from .websocket import cheapest_fuel
 
 PARALLEL_UPDATES = 0
@@ -67,6 +74,27 @@ DESCRIPTIONS: tuple[FuelSensorDescription, ...] = (
 )
 
 
+@dataclass(frozen=True, kw_only=True)
+class CostSensorDescription(SensorEntityDescription):
+    """Describes a sensor derived from the yearly cost comparison."""
+
+    value_fn: Callable[[AnnualCosts], int | None]
+
+
+COMPARISON_COST_DESCRIPTIONS: tuple[CostSensorDescription, ...] = (
+    CostSensorDescription(
+        key="current_annual_cost",
+        translation_key="current_annual_cost",
+        value_fn=lambda costs: costs.current_cost,
+    ),
+    CostSensorDescription(
+        key="potential_savings",
+        translation_key="potential_savings",
+        value_fn=lambda costs: costs.savings,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: HeatingPricesConfigEntry,
@@ -90,6 +118,26 @@ async def async_setup_entry(
             entities.append(FuelSensor(coordinator, fuel, fuel_description))
     if len(coordinator.fuels) > 1:
         entities.append(CheapestFuelSensor(coordinator))
+
+    # Cost sensors only make sense once the user entered their consumption.
+    if coordinator.annual_costs is not None:
+        for fuel in coordinator.fuels:
+            entities.append(
+                CostSensor(
+                    coordinator,
+                    fuel,
+                    CostSensorDescription(
+                        key="annual_cost",
+                        translation_key="annual_cost",
+                        value_fn=lambda costs, fuel=fuel: costs.costs.get(fuel),
+                    ),
+                )
+            )
+        if len(coordinator.fuels) > 1:
+            entities.extend(
+                CostSensor(coordinator, "comparison", description)
+                for description in COMPARISON_COST_DESCRIPTIONS
+            )
     async_add_entities(entities)
 
 
@@ -156,7 +204,16 @@ class FuelSensor(HeatingPricesEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Context for the main price sensor."""
         price = self._price
-        if price is None or self.entity_description.key != "price":
+        if price is None:
+            return None
+        if self.entity_description.key == "rating":
+            # Lets automations (e.g. the price alert blueprint) quote the price.
+            return {
+                "price": price.price,
+                "unit": price.unit,
+                "period": price.period.isoformat(),
+            }
+        if self.entity_description.key != "price":
             return None
         attributes: dict[str, Any] = {
             "period": price.period.isoformat(),
@@ -204,4 +261,51 @@ class CheapestFuelSensor(HeatingPricesEntity, SensorEntity):
         return {
             f"{fuel}_heat_price": price.heat_price
             for fuel, price in (self.coordinator.data or {}).items()
+        }
+
+
+class CostSensor(HeatingPricesEntity, SensorEntity):
+    """Yearly heating costs in euro for the user's consumption."""
+
+    entity_description: CostSensorDescription
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        coordinator: HeatingPricesCoordinator,
+        device: str,
+        description: CostSensorDescription,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device)
+        self.entity_description = description
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{device}_{description.key}"
+        )
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the cost."""
+        costs = self.coordinator.annual_costs
+        return self.entity_description.value_fn(costs) if costs else None
+
+    @property
+    def available(self) -> bool:
+        """Available while the cost can be calculated."""
+        return super().available and self.native_value is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Explain what the comparison is based on."""
+        costs = self.coordinator.annual_costs
+        if costs is None or self.entity_description.key == "annual_cost":
+            return None
+        return {
+            "current_fuel": costs.current_fuel,
+            "annual_consumption": costs.consumption,
+            "consumption_unit": CONSUMPTION_UNITS[costs.current_fuel],
+            "heat_demand_kwh": round(costs.heat_kwh),
+            "cheapest_fuel": costs.cheapest,
         }

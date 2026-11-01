@@ -1,0 +1,114 @@
+blueprint:
+  name: Heating Prices – Kauf-Alarm / buy alert
+  description: >-
+    Schickt eine Nachricht, wenn ein Brennstoff im Vergleich zu den letzten
+    12 Monaten günstig (oder teuer) wird. Benötigt die Integration
+    „Heating Prices“.
+
+
+    Sends a notification when a fuel becomes cheap (or expensive) compared
+    with the last 12 months. Requires the Heating Prices integration.
+  domain: automation
+  author: F30onAir
+  source_url: https://github.com/F30onAir/ha-heating-prices/blob/main/blueprints/automation/heating_prices/price_alert.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    price:
+      name: Preis / Price
+      icon: mdi:scale-balance
+      input:
+        rating_sensor:
+          name: Preisbewertung / Price rating
+          description: >-
+            Der Sensor „Preisbewertung“ eines Brennstoffs, z. B.
+            sensor.heizol_preisbewertung. / The price rating sensor of a fuel.
+          selector:
+            entity:
+              filter:
+                - integration: heating_prices
+                  domain: sensor
+                  device_class: enum
+        ratings:
+          name: Benachrichtigen bei / Notify on
+          default:
+            - low
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: Günstig / Low
+                  value: low
+                - label: Teuer / High
+                  value: high
+    notification:
+      name: Benachrichtigung / Notification
+      icon: mdi:cellphone-message
+      input:
+        notify_target:
+          name: Empfänger / Recipients
+          description: >-
+            Eine oder mehrere Benachrichtigungs-Entitäten, z. B. die
+            Companion-App. / One or more notify entities.
+          selector:
+            entity:
+              filter:
+                - domain: notify
+              multiple: true
+        title:
+          name: Titel / Title
+          default: "{{ fuel }}: {{ rating_text }}"
+          selector:
+            text: {}
+        message:
+          name: Nachricht / Message
+          default: >-
+            {{ fuel }} kostet jetzt {{ price_text }} {{ unit }}
+            ({{ rating_text | lower }} im Vergleich zu den letzten 12 Monaten).
+          selector:
+            text:
+              multiline: true
+    more:
+      name: Weitere Aktionen / More actions
+      icon: mdi:playlist-plus
+      collapsed: true
+      input:
+        extra_actions:
+          name: Zusätzliche Aktionen / Additional actions
+          description: >-
+            Optional, z. B. eine Durchsage auf einem Lautsprecher. / Optional,
+            e.g. an announcement on a speaker.
+          default: []
+          selector:
+            action: {}
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input rating_sensor
+    to: !input ratings
+    not_from:
+      - unknown
+      - unavailable
+
+variables:
+  fuel: >-
+    {% set device = device_id(trigger.entity_id) %}
+    {{ (device and (device_attr(device, 'name_by_user') or device_attr(device, 'name')))
+       or state_attr(trigger.entity_id, 'friendly_name') }}
+  price: "{{ trigger.to_state.attributes.price }}"
+  unit: "{{ trigger.to_state.attributes.unit }}"
+  price_text: "{{ '%.2f' | format(price | float(0)) | replace('.', ',') }}"
+  rating_text: "{{ 'Günstig' if trigger.to_state.state == 'low' else 'Teuer' }}"
+
+actions:
+  - action: notify.send_message
+    target:
+      entity_id: !input notify_target
+    data:
+      title: !input title
+      message: !input message
+  - choose: []
+    default: !input extra_actions

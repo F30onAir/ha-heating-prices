@@ -20,7 +20,9 @@ import voluptuous as vol
 
 from .client import SOURCE_ERRORS, PriceClient
 from .const import (
+    CONF_ANNUAL_CONSUMPTION,
     CONF_COUNTRY,
+    CONF_CURRENT_FUEL,
     CONF_FUELS,
     CONF_GAS_BAND,
     CONF_PELLET_QUANTITY,
@@ -238,7 +240,7 @@ class HeatingPricesConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class HeatingPricesOptionsFlow(OptionsFlow):
-    """Change own prices, pellet region and gas band."""
+    """Change own prices, pellet region, gas band and the cost calculator."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -249,6 +251,10 @@ class HeatingPricesOptionsFlow(OptionsFlow):
         if user_input is not None:
             if FUEL_PELLETS in fuels:
                 errors = _pellet_errors(user_input)
+            if user_input.get(CONF_ANNUAL_CONSUMPTION) and not user_input.get(
+                CONF_CURRENT_FUEL
+            ):
+                errors[CONF_CURRENT_FUEL] = "current_fuel_required"
             if not errors:
                 return self.async_create_entry(data=user_input)
 
@@ -269,6 +275,19 @@ class HeatingPricesOptionsFlow(OptionsFlow):
             fields.update(_pellet_schema().schema)
         if FUEL_GAS in fuels:
             fields.update(_gas_schema().schema)
+        # Optional cost calculator: the fuel heated with and its yearly amount.
+        fields[vol.Optional(CONF_CURRENT_FUEL)] = SelectSelector(
+            SelectSelectorConfig(
+                options=[fuel for fuel in FUELS if fuel in fuels],
+                translation_key=CONF_FUELS,
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        )
+        fields[vol.Optional(CONF_ANNUAL_CONSUMPTION)] = NumberSelector(
+            NumberSelectorConfig(
+                min=0, max=1_000_000, step="any", mode=NumberSelectorMode.BOX
+            )
+        )
 
         current = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(

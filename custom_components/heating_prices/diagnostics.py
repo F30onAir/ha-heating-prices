@@ -14,8 +14,10 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return settings and a summary of the current prices."""
     coordinator = entry.runtime_data
+    costs = coordinator.annual_costs
     return {
         "settings": coordinator.settings,
+        "annual_costs": costs.as_dict() if costs else None,
         "last_fetched": (
             coordinator.last_fetched.isoformat() if coordinator.last_fetched else None
         ),

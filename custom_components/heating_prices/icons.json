@@ -14,6 +14,9 @@
           "high": "mdi:thumb-down-outline"
         }
       },
+      "annual_cost": { "default": "mdi:cash" },
+      "current_annual_cost": { "default": "mdi:home-thermometer-outline" },
+      "potential_savings": { "default": "mdi:piggy-bank-outline" },
       "cheapest_fuel": {
         "default": "mdi:trophy-outline",
         "state": {

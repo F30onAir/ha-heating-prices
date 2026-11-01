@@ -52,19 +52,25 @@
     "step": {
       "init": {
         "title": "Heizpreise Optionen",
-        "description": "Trage ein, was du selbst zahlst, um es mit dem Marktpreis zu vergleichen.",
+        "description": "Trage ein, was du selbst zahlst, um es mit dem Marktpreis zu vergleichen. Mit deinem Brennstoff und Jahresverbrauch berechnet die Integration außerdem deine Heizkosten pro Jahr für jeden Brennstoff.",
         "data": {
           "own_oil_price": "Mein Heizölpreis",
           "own_pellet_price": "Mein Pelletpreis",
           "own_gas_price": "Mein Gaspreis",
           "pellet_region": "Pellet-Region",
           "pellet_quantity": "Pellet-Liefermenge",
-          "gas_band": "Jahresverbrauch Gas"
+          "gas_band": "Jahresverbrauch Gas",
+          "current_fuel": "Ich heize mit",
+          "annual_consumption": "Mein Verbrauch pro Jahr"
+        },
+        "data_description": {
+          "annual_consumption": "Heizöl in Litern, Pellets in Tonnen, Erdgas in kWh."
         }
       }
     },
     "error": {
-      "quantity_regional_only": "Preise für 3 t werden nur je Region veröffentlicht. Wähle eine Region oder 6 t bzw. 26 t."
+      "quantity_regional_only": "Preise für 3 t werden nur je Region veröffentlicht. Wähle eine Region oder 6 t bzw. 26 t.",
+      "current_fuel_required": "Wähle den Brennstoff, auf den sich dein Verbrauch bezieht."
     }
   },
   "selector": {
@@ -126,7 +132,10 @@
           "pellets": "Holzpellets",
           "natural_gas": "Erdgas"
         }
-      }
+      },
+      "annual_cost": { "name": "Kosten pro Jahr" },
+      "current_annual_cost": { "name": "Meine Kosten pro Jahr" },
+      "potential_savings": { "name": "Mögliche Ersparnis pro Jahr" }
     }
   },
   "exceptions": {

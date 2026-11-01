@@ -14,6 +14,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.heating_prices.const import (
+    CONF_ANNUAL_CONSUMPTION,
+    CONF_CURRENT_FUEL,
     CONF_OWN_GAS_PRICE,
     DOMAIN,
     FUEL_GAS,
@@ -62,6 +64,11 @@ async def test_sensors(
 
     change = hass.states.get(entity_id(hass, config_entry, "heating_oil_change"))
     assert change is not None and float(change.state) == 2.3
+
+    rating = hass.states.get(entity_id(hass, config_entry, "heating_oil_rating"))
+    assert rating is not None and rating.state == "high"
+    assert rating.attributes["price"] == 175.01
+    assert rating.attributes["period"] == "2026-10-26"
 
     gas = hass.states.get(entity_id(hass, config_entry, "natural_gas_price"))
     assert gas is not None
@@ -179,6 +186,62 @@ async def test_websocket(
     await client.send_json_auto_id({"type": f"{DOMAIN}/data", "entry_id": "unknown"})
     response = await client.receive_json()
     assert response["result"]["entries"] == []
+
+
+async def test_annual_costs(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_client: AsyncMock,
+    config_entry: MockConfigEntry,
+) -> None:
+    """2,500 L of heating oil a year are compared with the other fuels."""
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={CONF_CURRENT_FUEL: FUEL_OIL, CONF_ANNUAL_CONSUMPTION: 2500},
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    # 25,000 kWh: oil 17.50 ct, pellets 9.18 ct (450 €/t), gas 11.42 ct per kWh.
+    expected = {
+        "heating_oil_annual_cost": 4375,
+        "pellets_annual_cost": 2295,
+        "natural_gas_annual_cost": 2855,
+        "comparison_current_annual_cost": 4375,
+        "comparison_potential_savings": 2080,
+    }
+    for unique, value in expected.items():
+        state = hass.states.get(entity_id(hass, config_entry, unique))
+        assert state is not None, unique
+        assert float(state.state) == value, unique
+    savings = hass.states.get(
+        entity_id(hass, config_entry, "comparison_potential_savings")
+    )
+    assert savings is not None
+    assert savings.attributes["cheapest_fuel"] == "pellets"
+    assert savings.attributes["heat_demand_kwh"] == 25000
+
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": f"{DOMAIN}/data"})
+    response: dict[str, Any] = await client.receive_json()
+    annual = response["result"]["entries"][0]["annual"]
+    assert annual["consumption_unit"] == "L"
+    assert annual["savings"] == 2080
+
+
+async def test_no_cost_sensors_without_consumption(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """Without a consumption the calculator stays off."""
+    await setup(hass, config_entry)
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{config_entry.entry_id}_heating_oil_annual_cost"
+        )
+        is None
+    )
 
 
 async def test_diagnostics(

@@ -15,7 +15,9 @@ from homeassistant.util import dt as dt_util
 
 from .client import SOURCE_ERRORS, PriceClient
 from .const import (
+    CONF_ANNUAL_CONSUMPTION,
     CONF_COUNTRY,
+    CONF_CURRENT_FUEL,
     CONF_FUELS,
     CONF_GAS_BAND,
     CONF_PELLET_QUANTITY,
@@ -27,10 +29,11 @@ from .const import (
     FUEL_OIL,
     FUEL_PELLETS,
     OIL_HISTORY_MAX_AGE,
+    OWN_PRICE_KEYS,
     PELLET_REGION_NATIONAL,
     UPDATE_INTERVAL,
 )
-from .models import FuelPrice
+from .models import AnnualCosts, FuelPrice, annual_costs
 from .providers import PriceSeries
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,6 +88,18 @@ class HeatingPricesCoordinator(DataUpdateCoordinator[dict[str, FuelPrice]]):
     def fuels(self) -> list[str]:
         """Enabled fuels."""
         return list(self.settings[CONF_FUELS])
+
+    @property
+    def annual_costs(self) -> AnnualCosts | None:
+        """Yearly costs per fuel, when the user entered their consumption."""
+        settings = self.settings
+        fuel = settings.get(CONF_CURRENT_FUEL)
+        consumption = settings.get(CONF_ANNUAL_CONSUMPTION)
+        if not fuel or not consumption or not self.data:
+            return None
+        return annual_costs(
+            fuel, float(consumption), self.data, settings.get(OWN_PRICE_KEYS[fuel])
+        )
 
     def _signature(self, fuel: str) -> str:
         """Identify the settings a cached series belongs to."""

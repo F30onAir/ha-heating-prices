@@ -52,19 +52,25 @@
     "step": {
       "init": {
         "title": "Heating prices options",
-        "description": "Enter what you pay to compare it with the market price.",
+        "description": "Enter what you pay to compare it with the market price. With your fuel and yearly consumption, the integration also calculates your heating costs per year for every fuel.",
         "data": {
           "own_oil_price": "My heating oil price",
           "own_pellet_price": "My pellet price",
           "own_gas_price": "My gas price",
           "pellet_region": "Pellet region",
           "pellet_quantity": "Pellet delivery quantity",
-          "gas_band": "Annual gas consumption"
+          "gas_band": "Annual gas consumption",
+          "current_fuel": "I heat with",
+          "annual_consumption": "My consumption per year"
+        },
+        "data_description": {
+          "annual_consumption": "Heating oil in litres, wood pellets in tonnes, natural gas in kWh."
         }
       }
     },
     "error": {
-      "quantity_regional_only": "3 t prices are only published per region. Choose a region or 6 t / 26 t."
+      "quantity_regional_only": "3 t prices are only published per region. Choose a region or 6 t / 26 t.",
+      "current_fuel_required": "Choose the fuel your consumption refers to."
     }
   },
   "selector": {
@@ -126,7 +132,10 @@
           "pellets": "Wood pellets",
           "natural_gas": "Natural gas"
         }
-      }
+      },
+      "annual_cost": { "name": "Cost per year" },
+      "current_annual_cost": { "name": "My cost per year" },
+      "potential_savings": { "name": "Potential savings per year" }
     }
   },
   "exceptions": {

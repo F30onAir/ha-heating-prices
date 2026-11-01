@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 import voluptuous as vol
 
-from .const import CONF_COUNTRY, DOMAIN, OWN_PRICE_KEYS
+from .const import CONF_COUNTRY, CONSUMPTION_UNITS, DOMAIN, OWN_PRICE_KEYS
 from .coordinator import HeatingPricesConfigEntry
 from .models import FuelPrice
 
@@ -76,12 +76,18 @@ def _entry_payload(
             for key in SENSOR_KEYS
         }
         fuels[fuel] = payload
+    costs = coordinator.annual_costs
+    annual = None
+    if costs is not None:
+        annual = costs.as_dict()
+        annual["consumption_unit"] = CONSUMPTION_UNITS[costs.current_fuel]
     return {
         "entry_id": entry.entry_id,
         "title": entry.title,
         "country": settings[CONF_COUNTRY],
         "fuels": fuels,
         "cheapest": cheapest_fuel(coordinator.data or {}),
+        "annual": annual,
         "last_update": (
             coordinator.last_fetched.isoformat() if coordinator.last_fetched else None
         ),

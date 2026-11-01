@@ -12,7 +12,9 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.heating_prices.const import (
+    CONF_ANNUAL_CONSUMPTION,
     CONF_COUNTRY,
+    CONF_CURRENT_FUEL,
     CONF_FUELS,
     CONF_GAS_BAND,
     CONF_OWN_GAS_PRICE,
@@ -186,3 +188,31 @@ async def test_options(
     await hass.async_block_till_done()
     assert config_entry.options[CONF_OWN_GAS_PRICE] == 10.5
     mock_client.pellets.assert_awaited_with("south", "3")
+
+
+async def test_options_consumption_needs_fuel(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """A consumption without the fuel it belongs to is rejected."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    base = {
+        CONF_PELLET_REGION: "national",
+        CONF_PELLET_QUANTITY: "6",
+        CONF_GAS_BAND: "d2",
+    }
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**base, CONF_ANNUAL_CONSUMPTION: 2500}
+    )
+    assert result["errors"] == {CONF_CURRENT_FUEL: "current_fuel_required"}
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {**base, CONF_ANNUAL_CONSUMPTION: 2500, CONF_CURRENT_FUEL: FUEL_OIL},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert config_entry.options[CONF_CURRENT_FUEL] == FUEL_OIL
