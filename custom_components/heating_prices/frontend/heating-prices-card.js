@@ -4,7 +4,7 @@
  * per-kWh comparison. Data comes from the heating_prices integration.
  */
 
-const CARD_VERSION = "0.1.2";
+const CARD_VERSION = "0.1.3";
 const FUELS = ["heating_oil", "pellets", "natural_gas"];
 const RANGES = { "6m": 183, "1y": 365, "3y": 1096, max: Infinity };
 
@@ -440,6 +440,12 @@ class HeatingPricesCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // Home Assistant sets hass on every state change; only pass it on instead
+    // of rebuilding the form, which would reset the selectors each time.
+    if (this._form) {
+      this._form.hass = hass;
+      return;
+    }
     this._render();
   }
 
@@ -460,6 +466,8 @@ class HeatingPricesCardEditor extends HTMLElement {
     }
     this._form.hass = this._hass;
     this._form.data = this._config;
+    if (this._formLanguage === t) return;
+    this._formLanguage = t;
     this._form.schema = [
       { name: "title", selector: { text: {} } },
       { name: "entry_id", selector: { config_entry: { integration: "heating_prices" } } },
@@ -476,9 +484,41 @@ class HeatingPricesCardEditor extends HTMLElement {
   }
 }
 
-if (!customElements.get("heating-prices-card")) {
-  customElements.define("heating-prices-card", HeatingPricesCard);
-  customElements.define("heating-prices-card-editor", HeatingPricesCardEditor);
+const ELEMENTS = [
+  ["heating-prices-card", HeatingPricesCard],
+  ["heating-prices-card-editor", HeatingPricesCardEditor],
+];
+
+// The integration loads this file very early. Home Assistant can afterwards
+// replace window.customElements with a scoped registry that does not know
+// elements defined before, and then waits forever for the card. Registering
+// again in whatever registry is current fixes that; a subclass is used when
+// the registry refuses a constructor it has seen before.
+function registerElements() {
+  for (const [name, elementClass] of ELEMENTS) {
+    if (customElements.get(name)) continue;
+    try {
+      customElements.define(name, elementClass);
+    } catch (err) {
+      try {
+        customElements.define(name, class extends elementClass {});
+      } catch (err2) {
+        console.warn(`heating-prices-card: could not register ${name}`, err2);
+      }
+    }
+  }
+}
+
+if (!window.customCards?.some((card) => card.type === "heating-prices-card")) {
+  registerElements();
+  // Check again while the frontend starts up and whenever it navigates.
+  let checks = 0;
+  const timer = setInterval(() => {
+    registerElements();
+    if (++checks >= 120) clearInterval(timer);
+  }, 1000);
+  window.addEventListener("location-changed", registerElements);
+
   window.customCards = window.customCards || [];
   window.customCards.push({
     type: "heating-prices-card",
