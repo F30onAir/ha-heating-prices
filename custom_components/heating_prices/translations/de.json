@@ -1,0 +1,137 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Heizpreise",
+        "description": "Die Preise stammen aus offenen Daten: EU Weekly Oil Bulletin (Heizöl, wöchentlich), Deutsches Pelletinstitut (Pellets, monatlich, nur Deutschland) und Eurostat (Erdgas).",
+        "data": {
+          "country": "Land",
+          "fuels": "Brennstoffe"
+        },
+        "data_description": {
+          "country": "Die Preise sind Landesdurchschnitte inklusive aller Steuern.",
+          "fuels": "Für ein weiteres Land kannst du die Integration erneut hinzufügen."
+        }
+      },
+      "pellets": {
+        "title": "Holzpellets",
+        "description": "Durchschnittspreis pro Tonne ENplus-A1-Pellets, lose eingeblasen, Lieferung im Umkreis von 50 km, inklusive aller Nebenkosten und Mehrwertsteuer.",
+        "data": {
+          "pellet_region": "Region",
+          "pellet_quantity": "Liefermenge"
+        },
+        "data_description": {
+          "pellet_region": "Nord/Ost: BE, BB, HB, HH, MV, NI, SH. Mitte: HE, NW, RP, SN, ST, TH. Süd: BY, BW, SL.",
+          "pellet_quantity": "3 t wird nur je Region veröffentlicht."
+        }
+      },
+      "gas": {
+        "title": "Erdgas",
+        "description": "Eurostat veröffentlicht die Gaspreise für Haushalte zweimal im Jahr. Die Integration schreibt den letzten Wert mit dem monatlichen Gaspreisindex fort. Der aktuelle Wert ist daher eine Schätzung.",
+        "data": {
+          "gas_band": "Jahresverbrauch"
+        }
+      }
+    },
+    "error": {
+      "no_fuels": "Wähle mindestens einen Brennstoff aus.",
+      "pellets_unavailable": "Pelletpreise gibt es nur für Deutschland.",
+      "quantity_regional_only": "Preise für 3 t werden nur je Region veröffentlicht. Wähle eine Region oder 6 t bzw. 26 t.",
+      "oil_no_data": "Das Oil Bulletin enthält für dieses Land keinen Heizölpreis.",
+      "oil_cannot_connect": "Das EU Weekly Oil Bulletin ist nicht erreichbar.",
+      "pellets_no_data": "Für diese Region und Liefermenge wurde kein Pelletpreis gefunden.",
+      "pellets_cannot_connect": "Die Webseite des Deutschen Pelletinstituts ist nicht erreichbar.",
+      "gas_no_data": "Eurostat hat für dieses Land und diesen Verbrauch keinen Gaspreis.",
+      "gas_cannot_connect": "Eurostat ist nicht erreichbar."
+    },
+    "abort": {
+      "already_configured": "Dieses Land ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Heizpreise Optionen",
+        "description": "Trage ein, was du selbst zahlst, um es mit dem Marktpreis zu vergleichen.",
+        "data": {
+          "own_oil_price": "Mein Heizölpreis",
+          "own_pellet_price": "Mein Pelletpreis",
+          "own_gas_price": "Mein Gaspreis",
+          "pellet_region": "Pellet-Region",
+          "pellet_quantity": "Pellet-Liefermenge",
+          "gas_band": "Jahresverbrauch Gas"
+        }
+      }
+    },
+    "error": {
+      "quantity_regional_only": "Preise für 3 t werden nur je Region veröffentlicht. Wähle eine Region oder 6 t bzw. 26 t."
+    }
+  },
+  "selector": {
+    "fuels": {
+      "options": {
+        "heating_oil": "Heizöl",
+        "pellets": "Holzpellets (Deutschland)",
+        "natural_gas": "Erdgas"
+      }
+    },
+    "pellet_region": {
+      "options": {
+        "national": "Deutschland (Durchschnitt)",
+        "north_east": "Nord/Ost",
+        "central": "Mitte",
+        "south": "Süd"
+      }
+    },
+    "pellet_quantity": {
+      "options": {
+        "3": "3 t (nur regional)",
+        "6": "6 t",
+        "26": "26 t"
+      }
+    },
+    "gas_band": {
+      "options": {
+        "D1": "Bis 5.556 kWh (Band D1)",
+        "D2": "5.556 bis 55.556 kWh (Band D2, typisches Haus)",
+        "D3": "Über 55.556 kWh (Band D3)"
+      }
+    }
+  },
+  "device": {
+    "heating_oil": { "name": "Heizöl" },
+    "pellets": { "name": "Holzpellets" },
+    "natural_gas": { "name": "Erdgas" },
+    "comparison": { "name": "Heizkostenvergleich" }
+  },
+  "entity": {
+    "sensor": {
+      "heating_oil_price": { "name": "Preis" },
+      "pellets_price": { "name": "Preis" },
+      "natural_gas_price": { "name": "Preis" },
+      "heat_price": { "name": "Preis pro kWh Wärme" },
+      "change": { "name": "Veränderung" },
+      "rating": {
+        "name": "Preisbewertung",
+        "state": {
+          "low": "Günstig",
+          "normal": "Normal",
+          "high": "Teuer"
+        }
+      },
+      "cheapest_fuel": {
+        "name": "Günstigster Brennstoff",
+        "state": {
+          "heating_oil": "Heizöl",
+          "pellets": "Holzpellets",
+          "natural_gas": "Erdgas"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "update_failed": {
+      "message": "Für folgende Brennstoffe konnten keine Preise geladen werden: {fuels}"
+    }
+  }
+}

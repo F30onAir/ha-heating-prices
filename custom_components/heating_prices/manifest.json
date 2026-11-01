@@ -1,0 +1,13 @@
+{
+  "domain": "heating_prices",
+  "name": "Heating Prices",
+  "after_dependencies": ["frontend", "http", "websocket_api"],
+  "codeowners": ["@F30onAir"],
+  "config_flow": true,
+  "documentation": "https://github.com/F30onAir/ha-heating-prices",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/F30onAir/ha-heating-prices/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

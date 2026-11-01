@@ -1,0 +1,27 @@
+{
+  "entity": {
+    "sensor": {
+      "heating_oil_price": { "default": "mdi:oil" },
+      "pellets_price": { "default": "mdi:grain" },
+      "natural_gas_price": { "default": "mdi:fire" },
+      "heat_price": { "default": "mdi:radiator" },
+      "change": { "default": "mdi:trending-neutral" },
+      "rating": {
+        "default": "mdi:scale-balance",
+        "state": {
+          "low": "mdi:thumb-up-outline",
+          "normal": "mdi:minus-circle-outline",
+          "high": "mdi:thumb-down-outline"
+        }
+      },
+      "cheapest_fuel": {
+        "default": "mdi:trophy-outline",
+        "state": {
+          "heating_oil": "mdi:oil",
+          "pellets": "mdi:grain",
+          "natural_gas": "mdi:fire"
+        }
+      }
+    }
+  }
+}
