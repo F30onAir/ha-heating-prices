@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "heating_prices"
-VERSION: Final = "0.1.0"
+VERSION: Final = "0.1.1"
 
 PROJECT_URL: Final = "https://github.com/F30onAir/ha-heating-prices"
 USER_AGENT: Final = f"HomeAssistant-HeatingPrices/{VERSION} (+{PROJECT_URL})"
@@ -63,8 +63,8 @@ PELLET_QUANTITIES: Final = ("3", "6", "26")
 PELLET_NATIONAL_QUANTITIES: Final = ("6", "26")
 DEFAULT_PELLET_QUANTITY: Final = "6"
 
-GAS_BANDS: Final = ("D1", "D2", "D3")
-DEFAULT_GAS_BAND: Final = "D2"
+GAS_BANDS: Final = ("d1", "d2", "d3")
+DEFAULT_GAS_BAND: Final = "d2"
 
 RATING_LOW: Final = "low"
 RATING_NORMAL: Final = "normal"

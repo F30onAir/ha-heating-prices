@@ -107,6 +107,6 @@ def config_entry() -> MockConfigEntry:
             CONF_FUELS: [FUEL_OIL, FUEL_PELLETS, FUEL_GAS],
             CONF_PELLET_REGION: "national",
             CONF_PELLET_QUANTITY: "6",
-            CONF_GAS_BAND: "D2",
+            CONF_GAS_BAND: "d2",
         },
     )

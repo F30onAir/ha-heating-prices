@@ -48,7 +48,7 @@ async def test_full_flow(hass: HomeAssistant, mock_client: AsyncMock) -> None:
     mock_client.pellets.assert_awaited_with("south", "3")
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_GAS_BAND: "D2"}
+        result["flow_id"], {CONF_GAS_BAND: "d2"}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Germany"
@@ -57,7 +57,7 @@ async def test_full_flow(hass: HomeAssistant, mock_client: AsyncMock) -> None:
         CONF_FUELS: [FUEL_OIL, FUEL_PELLETS, FUEL_GAS],
         CONF_PELLET_REGION: "south",
         CONF_PELLET_QUANTITY: "3",
-        CONF_GAS_BAND: "D2",
+        CONF_GAS_BAND: "d2",
     }
     assert result["result"].unique_id == "DE"
 
@@ -74,11 +74,11 @@ async def test_gas_only_skips_pellets(
     )
     assert result["step_id"] == "gas"
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_GAS_BAND: "D3"}
+        result["flow_id"], {CONF_GAS_BAND: "d3"}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     mock_client.heating_oil_latest.assert_not_awaited()
-    mock_client.natural_gas.assert_awaited_with("AT", "D3")
+    mock_client.natural_gas.assert_awaited_with("AT", "d3")
 
 
 async def test_pellets_outside_germany(
@@ -168,7 +168,7 @@ async def test_options(
             CONF_OWN_GAS_PRICE: 10.5,
             CONF_PELLET_REGION: "national",
             CONF_PELLET_QUANTITY: "3",
-            CONF_GAS_BAND: "D2",
+            CONF_GAS_BAND: "d2",
         },
     )
     assert result["errors"] == {CONF_PELLET_QUANTITY: "quantity_regional_only"}
@@ -179,7 +179,7 @@ async def test_options(
             CONF_OWN_GAS_PRICE: 10.5,
             CONF_PELLET_REGION: "south",
             CONF_PELLET_QUANTITY: "3",
-            CONF_GAS_BAND: "D2",
+            CONF_GAS_BAND: "d2",
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY

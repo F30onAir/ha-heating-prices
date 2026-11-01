@@ -147,4 +147,4 @@ and German.
 
 ## License
 
-Code: [MIT](LICENSE). Price data belongs to the respective sources (see above).
+Code: [MIT](LICENSE). Price data belongs to the respective sources, see [NOTICE.md](NOTICE.md).

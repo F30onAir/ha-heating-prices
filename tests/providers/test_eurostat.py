@@ -47,9 +47,10 @@ INDEX = jsonstat(
 
 def test_urls() -> None:
     """Greece is "EL" at Eurostat and bands map to consumption codes."""
-    assert "geo=EL" in gas_price_url("GR", "D2")
-    assert "nrg_cons=GJ20-199" in gas_price_url("DE", "D2")
-    assert "nrg_cons=GJ_LT20" in gas_price_url("DE", "D1")
+    assert "geo=EL" in gas_price_url("GR", "d2")
+    assert "nrg_cons=GJ20-199" in gas_price_url("DE", "d2")
+    assert "nrg_cons=GJ_LT20" in gas_price_url("DE", "d1")
+    assert "nrg_cons=GJ_GE200" in gas_price_url("DE", "D3")
     assert "coicop18=CP04521" in gas_index_url("DE")
 
 

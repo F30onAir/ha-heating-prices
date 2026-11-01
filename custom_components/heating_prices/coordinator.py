@@ -171,7 +171,7 @@ class HeatingPricesCoordinator(DataUpdateCoordinator[dict[str, FuelPrice]]):
         self.last_fetched = dt_util.utcnow()
         await self._store.async_save(self._cache)
         if FUEL_OIL in data and self._oil_history_outdated():
-            self._schedule_oil_history()
+            self._schedule_oil_history(data[FUEL_OIL])
         return data
 
     def _oil_history_outdated(self) -> bool:
@@ -181,35 +181,37 @@ class HeatingPricesCoordinator(DataUpdateCoordinator[dict[str, FuelPrice]]):
         fetched = dt_util.parse_datetime(stored.get("fetched", ""))
         return fetched is None or dt_util.utcnow() - fetched > OIL_HISTORY_MAX_AGE
 
-    def _schedule_oil_history(self) -> None:
+    def _schedule_oil_history(self, price: FuelPrice) -> None:
         """Load the long oil history in the background, it takes a while."""
         if self._history_task is not None and not self._history_task.done():
             return
         self._history_task = self.config_entry.async_create_background_task(
-            self.hass, self._async_load_oil_history(), f"{DOMAIN}_oil_history"
+            self.hass, self._async_load_oil_history(price), f"{DOMAIN}_oil_history"
         )
 
-    async def _async_load_oil_history(self) -> None:
+    async def _async_load_oil_history(self, price: FuelPrice) -> None:
         try:
             series: PriceSeries = await self.client.heating_oil_history(self.country)
         except SOURCE_ERRORS as err:
             _LOGGER.warning("Could not load the heating oil price history: %s", err)
             return
 
-        # The merged history is kept with the cached oil price; only remember
-        # when the full file was read so it is not downloaded again too soon.
-        if (cached := self._cached(FUEL_OIL)) is not None:
-            cached.history = _merge(series.points, cached.history)
-            self._remember(cached)
+        # The task may finish before the refresh that started it has stored its
+        # result, so merge into the object that is (or will be) in self.data;
+        # a later refresh may already have replaced it.
+        if self.data and FUEL_OIL in self.data:
+            price = self.data[FUEL_OIL]
+        price.history = _merge(series.points, price.history)
+        self._remember(price)
+        # Remember when the full file was read so it is not downloaded again
+        # too soon; the merged history itself is cached with the oil price.
         self._cache["oil_history"] = {
             "country": self.country,
             "fetched": dt_util.utcnow().isoformat(),
         }
         await self._store.async_save(self._cache)
 
-        if self.data and FUEL_OIL in self.data:
-            current = self.data[FUEL_OIL]
-            current.history = _merge(series.points, current.history)
+        if self.data and self.data.get(FUEL_OIL) is price:
             self.async_set_updated_data(dict(self.data))
 
     async def async_remove_store(self) -> None:

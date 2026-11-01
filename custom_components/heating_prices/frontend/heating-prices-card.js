@@ -4,7 +4,7 @@
  * per-kWh comparison. Data comes from the heating_prices integration.
  */
 
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.1.1";
 const FUELS = ["heating_oil", "pellets", "natural_gas"];
 const RANGES = { "6m": 183, "1y": 365, "3y": 1096, max: Infinity };
 

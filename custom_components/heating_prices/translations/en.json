@@ -92,9 +92,9 @@
     },
     "gas_band": {
       "options": {
-        "D1": "Up to 5,556 kWh (band D1)",
-        "D2": "5,556 to 55,556 kWh (band D2, typical home)",
-        "D3": "More than 55,556 kWh (band D3)"
+        "d1": "Up to 5,556 kWh (band D1)",
+        "d2": "5,556 to 55,556 kWh (band D2, typical home)",
+        "d3": "More than 55,556 kWh (band D3)"
       }
     }
   },

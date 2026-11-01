@@ -22,7 +22,7 @@ SOURCE = "Eurostat"
 ATTRIBUTION = "Source: Eurostat (nrg_pc_202, prc_hicp_minr), CC BY 4.0"
 
 # Annual consumption bands of nrg_pc_202.
-BAND_CODES = {"D1": "GJ_LT20", "D2": "GJ20-199", "D3": "GJ_GE200"}
+BAND_CODES = {"d1": "GJ_LT20", "d2": "GJ20-199", "d3": "GJ_GE200"}
 
 # Eurostat uses EL for Greece, the Oil Bulletin uses GR.
 _GEO = {"GR": "EL"}
@@ -40,7 +40,8 @@ def gas_price_url(country: str, band: str) -> str:
     """URL for the half-yearly household gas prices in EUR/kWh."""
     query = {
         "geo": _geo(country),
-        "nrg_cons": BAND_CODES[band],
+        # v0.1.0 stored the band in upper case.
+        "nrg_cons": BAND_CODES[band.lower()],
         "unit": "KWH",
         "tax": "I_TAX",
         "currency": "EUR",
