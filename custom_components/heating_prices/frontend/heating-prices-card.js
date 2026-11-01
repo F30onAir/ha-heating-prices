@@ -4,7 +4,7 @@
  * per-kWh comparison. Data comes from the heating_prices integration.
  */
 
-const CARD_VERSION = "0.1.1";
+const CARD_VERSION = "0.1.2";
 const FUELS = ["heating_oil", "pellets", "natural_gas"];
 const RANGES = { "6m": 183, "1y": 365, "3y": 1096, max: Infinity };
 
@@ -21,7 +21,8 @@ const I18N = {
     rating: { low: "Günstig", normal: "Normal", high: "Teuer" },
     ranges: { "6m": "6 M", "1y": "1 J", "3y": "3 J", max: "Max" },
     updated: "aktualisiert",
-    week_of: "Woche ab",
+    as_of: "Stand",
+    weekdays: ["So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."],
     estimated: "geschätzt",
     estimated_hint: "Halbjahreswert von Eurostat, mit dem monatlichen Gaspreisindex fortgeschrieben",
     stale: "Daten veraltet",
@@ -52,7 +53,8 @@ const I18N = {
     rating: { low: "Low", normal: "Normal", high: "High" },
     ranges: { "6m": "6 M", "1y": "1 Y", "3y": "3 Y", max: "Max" },
     updated: "updated",
-    week_of: "Week of",
+    as_of: "As of",
+    weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     estimated: "estimate",
     estimated_hint: "Eurostat half-year price carried forward with the monthly gas price index",
     stale: "Data outdated",
@@ -110,8 +112,10 @@ function parseDate(iso) {
 function periodLabel(hass, fuel, info, t) {
   const date = parseDate(info.period);
   if (fuel === "heating_oil") {
+    // The Oil Bulletin reports the price of one day (Monday), not a weekly average.
+    // Weekday abbreviations are fixed because Intl output differs between browsers.
     const day = new Intl.DateTimeFormat(lang(hass), { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
-    return `${t.week_of} ${day}`;
+    return `${t.as_of} ${t.weekdays[date.getDay()]} ${day}`;
   }
   return new Intl.DateTimeFormat(lang(hass), { month: "long", year: "numeric" }).format(date);
 }
