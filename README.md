@@ -13,6 +13,8 @@ Händlerseiten und es wird kein API-Schlüssel gebraucht.
 
 ![Dashboard-Karte](docs/card.png)
 
+*Echte Preise vom 01.11.2026. Eigener Preis, Verbrauch und Käufe sind Beispiele.*
+
 ## Funktionen
 
 - **Heizöl** – wöchentlicher Durchschnittspreis inkl. aller Steuern für 27 EU-Länder,
