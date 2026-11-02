@@ -1,5 +1,10 @@
 {
   "name": "Heating Prices",
   "homeassistant": "2025.2.0",
-  "render_readme": true
+  "render_readme": true,
+  "country": [
+    "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR",
+    "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI",
+    "SK"
+  ]
 }
