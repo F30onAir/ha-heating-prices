@@ -139,6 +139,21 @@ def test_annual_costs_current_fuel_missing() -> None:
     assert costs.savings is None
 
 
+def test_lpg_has_no_heat_price() -> None:
+    """The LPG price is for motor fuel, so it is not converted to heat."""
+    assert _price("lpg", 113.0).heat_price is None
+    assert _price("lpg", 113.0).unit == "€/100 L"
+
+
+def test_annual_costs_leave_out_lpg() -> None:
+    """A cheap motor fuel price must not show up as a heating saving."""
+    prices = {**PRICES, "lpg": _price("lpg", 1.0)}
+    costs = annual_costs("heating_oil", 2500, prices)
+    assert costs is not None
+    assert "lpg" not in costs.costs
+    assert costs.cheapest == "pellets"
+
+
 def test_round_trip() -> None:
     """Prices survive storage."""
     price = oil([100.0, 101.5])

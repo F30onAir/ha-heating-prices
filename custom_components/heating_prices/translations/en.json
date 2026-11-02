@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Heating prices",
-        "description": "Prices come from open data: the EU Weekly Oil Bulletin (heating oil, weekly), the Deutsches Pelletinstitut (wood pellets, monthly, Germany only) and Eurostat (natural gas).",
+        "description": "Prices come from open data: the EU Weekly Oil Bulletin (heating oil and LPG, weekly), the Deutsches Pelletinstitut (wood pellets, monthly, Germany only) and Eurostat (natural gas).",
         "data": {
           "country": "Country",
           "fuels": "Fuels"
         },
         "data_description": {
           "country": "Prices are national averages including all taxes.",
-          "fuels": "You can add the integration again for another country."
+          "fuels": "You can add the integration again for another country. LPG is the official price of LPG as a motor fuel (Autogas). LPG for heating is taxed differently and can cost more or less, so it is not part of the cost comparison."
         }
       },
       "pellets": {
@@ -39,6 +39,8 @@
       "quantity_regional_only": "3 t prices are only published per region. Choose a region or 6 t / 26 t.",
       "oil_no_data": "The Oil Bulletin has no heating oil price for this country.",
       "oil_cannot_connect": "The EU Weekly Oil Bulletin could not be reached.",
+      "lpg_no_data": "The Oil Bulletin has no LPG price for this country.",
+      "lpg_cannot_connect": "The EU Weekly Oil Bulletin could not be reached.",
       "pellets_no_data": "No pellet price was found for this region and quantity.",
       "pellets_cannot_connect": "The Deutsches Pelletinstitut website could not be reached.",
       "gas_no_data": "Eurostat has no household gas price for this country and consumption band.",
@@ -51,6 +53,13 @@
   "options": {
     "step": {
       "init": {
+        "title": "Heating prices options",
+        "description": "Choose which prices to show. LPG is the official price of LPG as a motor fuel (Autogas). LPG for heating is taxed differently and can cost more or less, so it is not part of the cost comparison.",
+        "data": {
+          "fuels": "Fuels"
+        }
+      },
+      "settings": {
         "title": "Heating prices options",
         "description": "Enter what you pay to compare it with the market price. With your fuel and yearly consumption, the integration also calculates your heating costs per year for every fuel.",
         "data": {
@@ -69,8 +78,18 @@
       }
     },
     "error": {
+      "no_fuels": "Select at least one fuel.",
+      "pellets_unavailable": "Wood pellet prices are only available for Germany.",
       "quantity_regional_only": "3 t prices are only published per region. Choose a region or 6 t / 26 t.",
-      "current_fuel_required": "Choose the fuel your consumption refers to."
+      "current_fuel_required": "Choose the fuel your consumption refers to.",
+      "oil_no_data": "The Oil Bulletin has no heating oil price for this country.",
+      "oil_cannot_connect": "The EU Weekly Oil Bulletin could not be reached.",
+      "lpg_no_data": "The Oil Bulletin has no LPG price for this country.",
+      "lpg_cannot_connect": "The EU Weekly Oil Bulletin could not be reached.",
+      "pellets_no_data": "No pellet price was found for this region and quantity.",
+      "pellets_cannot_connect": "The Deutsches Pelletinstitut website could not be reached.",
+      "gas_no_data": "Eurostat has no household gas price for this country and consumption band.",
+      "gas_cannot_connect": "Eurostat could not be reached."
     }
   },
   "selector": {
@@ -78,7 +97,8 @@
       "options": {
         "heating_oil": "Heating oil",
         "pellets": "Wood pellets (Germany)",
-        "natural_gas": "Natural gas"
+        "natural_gas": "Natural gas",
+        "lpg": "LPG (motor fuel price)"
       }
     },
     "pellet_region": {
@@ -108,6 +128,7 @@
     "heating_oil": { "name": "Heating oil" },
     "pellets": { "name": "Wood pellets" },
     "natural_gas": { "name": "Natural gas" },
+    "lpg": { "name": "LPG (motor fuel)" },
     "comparison": { "name": "Heating cost comparison" }
   },
   "entity": {
@@ -115,6 +136,7 @@
       "heating_oil_price": { "name": "Price" },
       "pellets_price": { "name": "Price" },
       "natural_gas_price": { "name": "Price" },
+      "lpg_price": { "name": "Price" },
       "heat_price": { "name": "Price per kWh of heat" },
       "change": { "name": "Change" },
       "rating": {

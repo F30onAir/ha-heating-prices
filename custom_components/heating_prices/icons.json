@@ -4,6 +4,7 @@
       "heating_oil_price": { "default": "mdi:oil" },
       "pellets_price": { "default": "mdi:grain" },
       "natural_gas_price": { "default": "mdi:fire" },
+      "lpg_price": { "default": "mdi:gas-cylinder" },
       "heat_price": { "default": "mdi:radiator" },
       "change": { "default": "mdi:trending-neutral" },
       "rating": {

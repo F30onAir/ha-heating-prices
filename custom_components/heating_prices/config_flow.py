@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
     CountrySelector,
     CountrySelectorConfig,
@@ -20,6 +20,7 @@ import voluptuous as vol
 
 from .client import SOURCE_ERRORS, PriceClient
 from .const import (
+    COMPARABLE_FUELS,
     CONF_ANNUAL_CONSUMPTION,
     CONF_COUNTRY,
     CONF_CURRENT_FUEL,
@@ -31,6 +32,7 @@ from .const import (
     DEFAULT_PELLET_QUANTITY,
     DOMAIN,
     FUEL_GAS,
+    FUEL_LPG,
     FUEL_OIL,
     FUEL_PELLETS,
     FUEL_UNITS,
@@ -64,6 +66,17 @@ def _select(options: list[str] | tuple[str, ...], key: str) -> SelectSelector:
     return SelectSelector(
         SelectSelectorConfig(
             options=list(options), translation_key=key, mode=SelectSelectorMode.DROPDOWN
+        )
+    )
+
+
+def _fuels_selector() -> SelectSelector:
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=list(FUELS),
+            translation_key=CONF_FUELS,
+            multiple=True,
+            mode=SelectSelectorMode.LIST,
         )
     )
 
@@ -111,6 +124,28 @@ async def _check(call: Any) -> str | None:
     return None
 
 
+async def _fuels_errors(
+    hass: HomeAssistant,
+    country: str,
+    fuels: list[str],
+    known: list[str] | None = None,
+) -> dict[str, str]:
+    """Validate a fuel selection; fuels already in use are not checked again."""
+    if not fuels:
+        return {CONF_FUELS: "no_fuels"}
+    if FUEL_PELLETS in fuels and country not in PELLET_COUNTRIES:
+        return {CONF_FUELS: "pellets_unavailable"}
+    client = PriceClient(hass)
+    added = set(fuels) - set(known or [])
+    if FUEL_OIL in added and (
+        error := await _check(client.heating_oil_latest(country))
+    ):
+        return {"base": f"oil_{error}"}
+    if FUEL_LPG in added and (error := await _check(client.lpg_latest(country))):
+        return {"base": f"lpg_{error}"}
+    return {}
+
+
 class HeatingPricesConfigFlow(ConfigFlow, domain=DOMAIN):
     """Set up prices for one country."""
 
@@ -133,20 +168,10 @@ class HeatingPricesConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             country = user_input[CONF_COUNTRY]
-            fuels = user_input[CONF_FUELS]
             await self.async_set_unique_id(country)
             self._abort_if_unique_id_configured()
-            if not fuels:
-                errors[CONF_FUELS] = "no_fuels"
-            elif FUEL_PELLETS in fuels and country not in PELLET_COUNTRIES:
-                errors[CONF_FUELS] = "pellets_unavailable"
-            elif FUEL_OIL in fuels and (
-                error := await _check(
-                    PriceClient(self.hass).heating_oil_latest(country)
-                )
-            ):
-                errors["base"] = f"oil_{error}"
-            else:
+            errors = await _fuels_errors(self.hass, country, user_input[CONF_FUELS])
+            if not errors:
                 self._data = dict(user_input)
                 return await self._async_next_step()
 
@@ -160,14 +185,9 @@ class HeatingPricesConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_COUNTRY, default=default_country): CountrySelector(
                     CountrySelectorConfig(countries=list(SUPPORTED_COUNTRIES))
                 ),
-                vol.Required(CONF_FUELS, default=list(FUELS)): SelectSelector(
-                    SelectSelectorConfig(
-                        options=list(FUELS),
-                        translation_key=CONF_FUELS,
-                        multiple=True,
-                        mode=SelectSelectorMode.LIST,
-                    )
-                ),
+                vol.Required(
+                    CONF_FUELS, default=list(COMPARABLE_FUELS)
+                ): _fuels_selector(),
             }
         )
         return self.async_show_form(
@@ -240,13 +260,72 @@ class HeatingPricesConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class HeatingPricesOptionsFlow(OptionsFlow):
-    """Change own prices, pellet region, gas band and the cost calculator."""
+    """Change fuels, own prices, pellet region, gas band and the cost calculator."""
+
+    def __init__(self) -> None:
+        """Initialize the flow."""
+        self._fuels: list[str] = []
+
+    @property
+    def _settings(self) -> dict[str, Any]:
+        return {**self.config_entry.data, **self.config_entry.options}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
-        fuels = self.config_entry.data[CONF_FUELS]
+        """Choose the fuels."""
+        settings = self._settings
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = await _fuels_errors(
+                self.hass,
+                settings[CONF_COUNTRY],
+                user_input[CONF_FUELS],
+                settings[CONF_FUELS],
+            )
+            if not errors:
+                self._fuels = user_input[CONF_FUELS]
+                return await self.async_step_settings()
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema({vol.Required(CONF_FUELS): _fuels_selector()}),
+                user_input or settings,
+            ),
+            errors=errors,
+        )
+
+    async def _new_fuel_errors(self, user_input: dict[str, Any]) -> dict[str, str]:
+        """Check the sources of fuels just added, now that their settings are known."""
+        settings = self._settings
+        client = PriceClient(self.hass)
+        added = set(self._fuels) - set(settings[CONF_FUELS])
+        if FUEL_PELLETS in added and (
+            error := await _check(
+                client.pellets(
+                    user_input[CONF_PELLET_REGION], user_input[CONF_PELLET_QUANTITY]
+                )
+            )
+        ):
+            return {"base": f"pellets_{error}"}
+        if FUEL_GAS in added and (
+            error := await _check(
+                client.natural_gas(settings[CONF_COUNTRY], user_input[CONF_GAS_BAND])
+            )
+        ):
+            return {"base": f"gas_{error}"}
+        return {}
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the settings of the chosen fuels."""
+        fuels = self._fuels
+        comparable = [fuel for fuel in COMPARABLE_FUELS if fuel in fuels]
+        if not comparable:
+            # LPG alone has nothing to set.
+            return self.async_create_entry(data={CONF_FUELS: fuels})
+
         errors: dict[str, str] = {}
         if user_input is not None:
             if FUEL_PELLETS in fuels:
@@ -256,13 +335,15 @@ class HeatingPricesOptionsFlow(OptionsFlow):
             ):
                 errors[CONF_CURRENT_FUEL] = "current_fuel_required"
             if not errors:
-                return self.async_create_entry(data=user_input)
+                errors = await self._new_fuel_errors(user_input)
+            if not errors:
+                return self.async_create_entry(data={CONF_FUELS: fuels, **user_input})
 
         fields: dict[Any, Any] = {}
-        for fuel in FUELS:
+        for fuel, key in OWN_PRICE_KEYS.items():
             if fuel not in fuels:
                 continue
-            fields[vol.Optional(OWN_PRICE_KEYS[fuel])] = NumberSelector(
+            fields[vol.Optional(key)] = NumberSelector(
                 NumberSelectorConfig(
                     min=0,
                     max=10000,
@@ -278,7 +359,7 @@ class HeatingPricesOptionsFlow(OptionsFlow):
         # Optional cost calculator: the fuel heated with and its yearly amount.
         fields[vol.Optional(CONF_CURRENT_FUEL)] = SelectSelector(
             SelectSelectorConfig(
-                options=[fuel for fuel in FUELS if fuel in fuels],
+                options=comparable,
                 translation_key=CONF_FUELS,
                 mode=SelectSelectorMode.DROPDOWN,
             )
@@ -289,11 +370,18 @@ class HeatingPricesOptionsFlow(OptionsFlow):
             )
         )
 
-        current = {**self.config_entry.data, **self.config_entry.options}
+        suggested = user_input or self._settings
+        # A deselected fuel can no longer be the one the consumption refers to.
+        if suggested.get(CONF_CURRENT_FUEL) not in (None, *comparable):
+            suggested = {
+                key: value
+                for key, value in suggested.items()
+                if key not in (CONF_CURRENT_FUEL, CONF_ANNUAL_CONSUMPTION)
+            }
         return self.async_show_form(
-            step_id="init",
+            step_id="settings",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(fields), user_input or current
+                vol.Schema(fields), suggested
             ),
             errors=errors,
         )

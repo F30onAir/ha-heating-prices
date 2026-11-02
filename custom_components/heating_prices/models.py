@@ -9,6 +9,7 @@ from statistics import fmean
 from typing import Any
 
 from .const import (
+    COMPARABLE_FUELS,
     FUEL_GAS,
     FUEL_OIL,
     FUEL_PELLETS,
@@ -95,7 +96,9 @@ def annual_costs(
         return None
     heat_kwh = heat_demand_kwh(current_fuel, consumption)
     costs = {
-        fuel: round(heat_kwh * price.heat_price / 100) for fuel, price in prices.items()
+        fuel: round(heat_kwh * price.heat_price / 100)
+        for fuel, price in prices.items()
+        if price.heat_price is not None
     }
     if own_price:
         current_cost: int | None = round(
@@ -175,8 +178,10 @@ class FuelPrice:
         return round((self.price - previous) / previous * 100, 1)
 
     @property
-    def heat_price(self) -> float:
-        """Current price in ct per kWh of heat."""
+    def heat_price(self) -> float | None:
+        """Current price in ct per kWh of heat, if it can be compared."""
+        if self.fuel not in COMPARABLE_FUELS:
+            return None
         return heat_price(self.fuel, self.price)
 
     def last_year(self) -> list[float]:

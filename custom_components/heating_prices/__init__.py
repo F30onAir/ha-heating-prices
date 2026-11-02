@@ -1,4 +1,4 @@
-"""Heating Prices: heating oil, wood pellet and natural gas prices from open data."""
+"""Heating Prices: heating oil, pellet, natural gas and LPG prices from open data."""
 
 from __future__ import annotations
 

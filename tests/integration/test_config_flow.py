@@ -22,6 +22,7 @@ from custom_components.heating_prices.const import (
     CONF_PELLET_REGION,
     DOMAIN,
     FUEL_GAS,
+    FUEL_LPG,
     FUEL_OIL,
     FUEL_PELLETS,
 )
@@ -121,6 +122,31 @@ async def test_oil_errors_recover(
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [(ParseError("no column"), "lpg_no_data"), (ClientError(), "lpg_cannot_connect")],
+)
+async def test_lpg_errors_recover(
+    hass: HomeAssistant, mock_client: AsyncMock, error: Exception, expected: str
+) -> None:
+    """Countries without an LPG price get a clear error."""
+    mock_client.lpg_latest.side_effect = error
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_COUNTRY: "AT", CONF_FUELS: [FUEL_LPG]}
+    )
+    assert result["errors"] == {"base": expected}
+
+    mock_client.lpg_latest.side_effect = None
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_COUNTRY: "AT", CONF_FUELS: [FUEL_LPG]}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_FUELS] == [FUEL_LPG]
+
+
 async def test_national_three_tonnes(
     hass: HomeAssistant, mock_client: AsyncMock
 ) -> None:
@@ -163,6 +189,12 @@ async def test_options(
 
     result = await hass.config_entries.options.async_init(config_entry.entry_id)
     assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FUELS: [FUEL_OIL, FUEL_PELLETS, FUEL_GAS]}
+    )
+    assert result["step_id"] == "settings"
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
@@ -205,6 +237,9 @@ async def test_options_consumption_needs_fuel(
     }
     result = await hass.config_entries.options.async_init(config_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FUELS: [FUEL_OIL, FUEL_PELLETS, FUEL_GAS]}
+    )
+    result = await hass.config_entries.options.async_configure(
         result["flow_id"], {**base, CONF_ANNUAL_CONSUMPTION: 2500}
     )
     assert result["errors"] == {CONF_CURRENT_FUEL: "current_fuel_required"}
@@ -216,3 +251,99 @@ async def test_options_consumption_needs_fuel(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert config_entry.options[CONF_CURRENT_FUEL] == FUEL_OIL
+
+
+async def test_options_add_lpg(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """An existing entry can get LPG, which is checked and has no own settings."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    fuels = [FUEL_OIL, FUEL_PELLETS, FUEL_GAS, FUEL_LPG]
+
+    mock_client.lpg_latest.side_effect = ParseError("no LPG price")
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FUELS: fuels}
+    )
+    assert result["errors"] == {"base": "lpg_no_data"}
+
+    mock_client.lpg_latest.side_effect = None
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FUELS: fuels}
+    )
+    assert result["step_id"] == "settings"
+    assert not any("lpg" in str(key) for key in result["data_schema"].schema)
+    current_fuel = result["data_schema"].schema[CONF_CURRENT_FUEL]
+    assert current_fuel.config["options"] == [FUEL_OIL, FUEL_PELLETS, FUEL_GAS]
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_PELLET_REGION: "national",
+            CONF_PELLET_QUANTITY: "6",
+            CONF_GAS_BAND: "d2",
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert config_entry.options[CONF_FUELS] == fuels
+    assert config_entry.runtime_data.fuels == fuels
+
+
+async def test_options_no_fuels(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """At least one fuel has to stay selected."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FUELS: []}
+    )
+    assert result["errors"] == {CONF_FUELS: "no_fuels"}
+
+
+async def test_options_lpg_only_has_no_settings(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """With LPG alone there is nothing else to set, so the flow ends right away."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FUELS: [FUEL_LPG]}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {CONF_FUELS: [FUEL_LPG]}
+    await hass.async_block_till_done()
+
+
+async def test_options_new_gas_is_checked(
+    hass: HomeAssistant, mock_client: AsyncMock
+) -> None:
+    """A fuel that is added later is checked with the settings chosen for it."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="DE",
+        data={CONF_COUNTRY: "DE", CONF_FUELS: [FUEL_OIL]},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    mock_client.natural_gas.side_effect = ParseError("no price")
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_FUELS: [FUEL_OIL, FUEL_GAS]}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_GAS_BAND: "d3"}
+    )
+    assert result["errors"] == {"base": "gas_no_data"}
+    mock_client.natural_gas.assert_awaited_with("DE", "d3")

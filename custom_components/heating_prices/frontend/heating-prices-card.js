@@ -1,23 +1,24 @@
 /*
  * Heating Prices card for Home Assistant.
- * Shows heating oil, wood pellet and natural gas prices with trends and a
+ * Shows heating oil, wood pellet, natural gas and LPG prices with trends and a
  * per-kWh comparison. Data comes from the heating_prices integration.
  */
 
-const CARD_VERSION = "0.2.1";
-const FUELS = ["heating_oil", "pellets", "natural_gas"];
+const CARD_VERSION = "0.3.0";
+const FUELS = ["heating_oil", "pellets", "natural_gas", "lpg"];
 const RANGES = { "6m": 183, "1y": 365, "3y": 1096, max: Infinity };
 
 const FUEL_STYLE = {
   heating_oil: { icon: "mdi:oil", color: "#e8833a" },
   pellets: { icon: "mdi:grain", color: "#8bb04b" },
   natural_gas: { icon: "mdi:fire", color: "#3d8bd9" },
+  lpg: { icon: "mdi:gas-cylinder", color: "#9b6bd6" },
 };
 
 const I18N = {
   de: {
     title: "Heizpreise",
-    fuels: { heating_oil: "Heizöl", pellets: "Holzpellets", natural_gas: "Erdgas" },
+    fuels: { heating_oil: "Heizöl", pellets: "Holzpellets", natural_gas: "Erdgas", lpg: "Flüssiggas" },
     rating: { low: "Günstig", normal: "Normal", high: "Teuer" },
     ranges: { "6m": "6 M", "1y": "1 J", "3y": "3 J", max: "Max" },
     updated: "aktualisiert",
@@ -25,8 +26,10 @@ const I18N = {
     weekdays: ["So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."],
     estimated: "geschätzt",
     estimated_hint: "Halbjahreswert von Eurostat, mit dem monatlichen Gaspreisindex fortgeschrieben",
+    motor_fuel: "Autogas-Preis",
+    motor_fuel_hint: "Amtlicher EU-Preis für Flüssiggas als Kraftstoff. Flüssiggas zum Heizen wird anders besteuert und kann mehr oder weniger kosten.",
     stale: "Daten veraltet",
-    vs_previous: { heating_oil: "zur Vorwoche", pellets: "zum Vormonat", natural_gas: "zum Vormonat" },
+    vs_previous: { heating_oil: "zur Vorwoche", pellets: "zum Vormonat", natural_gas: "zum Vormonat", lpg: "zur Vorwoche" },
     min: "Min",
     max: "Max",
     avg: "Ø 12 M",
@@ -55,7 +58,7 @@ const I18N = {
   },
   en: {
     title: "Heating prices",
-    fuels: { heating_oil: "Heating oil", pellets: "Wood pellets", natural_gas: "Natural gas" },
+    fuels: { heating_oil: "Heating oil", pellets: "Wood pellets", natural_gas: "Natural gas", lpg: "LPG" },
     rating: { low: "Low", normal: "Normal", high: "High" },
     ranges: { "6m": "6 M", "1y": "1 Y", "3y": "3 Y", max: "Max" },
     updated: "updated",
@@ -63,8 +66,10 @@ const I18N = {
     weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     estimated: "estimate",
     estimated_hint: "Eurostat half-year price carried forward with the monthly gas price index",
+    motor_fuel: "Motor fuel price",
+    motor_fuel_hint: "Official EU price of LPG as a motor fuel. LPG for heating is taxed differently and can cost more or less.",
     stale: "Data outdated",
-    vs_previous: { heating_oil: "vs. last week", pellets: "vs. last month", natural_gas: "vs. last month" },
+    vs_previous: { heating_oil: "vs. last week", pellets: "vs. last month", natural_gas: "vs. last month", lpg: "vs. last week" },
     min: "Min",
     max: "Max",
     avg: "Avg 12 M",
@@ -123,7 +128,7 @@ function parseDate(iso) {
 
 function periodLabel(hass, fuel, info, t) {
   const date = parseDate(info.period);
-  if (fuel === "heating_oil") {
+  if (fuel === "heating_oil" || fuel === "lpg") {
     // The Oil Bulletin reports the price of one day (Monday), not a weekly average.
     // Weekday abbreviations are fixed because Intl output differs between browsers.
     const day = new Intl.DateTimeFormat(lang(hass), { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
@@ -260,6 +265,7 @@ class HeatingPricesCard extends HTMLElement {
       : "";
     const flags = [
       info.estimated ? `<span class="flag" title="${esc(t.estimated_hint)}">${esc(t.estimated)}</span>` : "",
+      info.extra?.price_basis === "motor_fuel" ? `<span class="flag" title="${esc(t.motor_fuel_hint)}">${esc(t.motor_fuel)}</span>` : "",
       info.stale ? `<span class="flag warn"><ha-icon icon="mdi:alert-outline"></ha-icon>${esc(t.stale)}</span>` : "",
     ].join("");
     let own = "";
@@ -299,10 +305,12 @@ class HeatingPricesCard extends HTMLElement {
   }
 
   _comparison(fuels, t) {
-    if (!this._config.show_comparison || fuels.length < 2) return "";
+    // Fuels without a heat price, such as LPG at its motor fuel price, are not compared.
+    const compared = fuels.filter((fuel) => this._data.fuels[fuel].heat_price != null);
+    if (!this._config.show_comparison || compared.length < 2) return "";
     const hass = this._hass;
     const annual = this._data.annual;
-    const rows = fuels.map((fuel) => ({ fuel, value: this._data.fuels[fuel].heat_price }));
+    const rows = compared.map((fuel) => ({ fuel, value: this._data.fuels[fuel].heat_price }));
     const max = Math.max(...rows.map((r) => r.value));
     const cheapest = this._data.cheapest;
     const cost = (fuel) => {
@@ -572,7 +580,7 @@ if (!window.customCards?.some((card) => card.type === "heating-prices-card")) {
   window.customCards.push({
     type: "heating-prices-card",
     name: "Heating Prices",
-    description: "Heating oil, wood pellet and natural gas prices with trends and a per-kWh comparison.",
+    description: "Heating oil, wood pellet, natural gas and LPG prices with trends and a per-kWh comparison.",
     preview: true,
     documentationURL: "https://github.com/F30onAir/ha-heating-prices",
   });

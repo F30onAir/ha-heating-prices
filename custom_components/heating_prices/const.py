@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "heating_prices"
-VERSION: Final = "0.2.1"
+VERSION: Final = "0.3.0"
 
 PROJECT_URL: Final = "https://github.com/F30onAir/ha-heating-prices"
 USER_AGENT: Final = f"HomeAssistant-HeatingPrices/{VERSION} (+{PROJECT_URL})"
@@ -29,7 +29,13 @@ CONF_ANNUAL_CONSUMPTION: Final = "annual_consumption"
 FUEL_OIL: Final = "heating_oil"
 FUEL_PELLETS: Final = "pellets"
 FUEL_GAS: Final = "natural_gas"
-FUELS: Final = (FUEL_OIL, FUEL_PELLETS, FUEL_GAS)
+FUEL_LPG: Final = "lpg"
+FUELS: Final = (FUEL_OIL, FUEL_PELLETS, FUEL_GAS, FUEL_LPG)
+# The official LPG price is for motor fuel (Autogas), which is taxed differently
+# from LPG for heating, so it stays out of the heating cost comparison.
+COMPARABLE_FUELS: Final = (FUEL_OIL, FUEL_PELLETS, FUEL_GAS)
+# Fuels published in the EU Weekly Oil Bulletin, read from one history file.
+BULLETIN_FUELS: Final = (FUEL_OIL, FUEL_LPG)
 
 OWN_PRICE_KEYS: Final = {
     FUEL_OIL: CONF_OWN_OIL_PRICE,
@@ -40,12 +46,14 @@ OWN_PRICE_KEYS: Final = {
 UNIT_OIL: Final = "€/100 L"
 UNIT_PELLETS: Final = "€/t"
 UNIT_GAS: Final = "ct/kWh"
+UNIT_LPG: Final = "€/100 L"
 UNIT_HEAT: Final = "ct/kWh"
 
 FUEL_UNITS: Final = {
     FUEL_OIL: UNIT_OIL,
     FUEL_PELLETS: UNIT_PELLETS,
     FUEL_GAS: UNIT_GAS,
+    FUEL_LPG: UNIT_LPG,
 }
 
 # Units of the annual consumption a user enters for the fuel they heat with.
@@ -59,6 +67,7 @@ FUEL_ICONS: Final = {
     FUEL_OIL: "mdi:oil",
     FUEL_PELLETS: "mdi:grain",
     FUEL_GAS: "mdi:fire",
+    FUEL_LPG: "mdi:gas-cylinder",
 }
 
 # Typical net calorific values used to compare fuels per kWh of heat.

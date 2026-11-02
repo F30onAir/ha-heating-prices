@@ -1,12 +1,16 @@
-"""Heating oil prices from the European Commission's Weekly Oil Bulletin.
+"""Heating oil and LPG prices from the European Commission's Weekly Oil Bulletin.
 
 Prices are consumer prices including all duties and taxes, published weekly per
 EU member state in EUR per 1000 litres. Reproduction is authorised provided the
 source is acknowledged.
+
+The bulletin's LPG price is for LPG as a motor fuel (Autogas). LPG for heating
+is taxed differently and has no official price, so the two can differ.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 
 from . import ParseError, PriceSeries
@@ -35,7 +39,12 @@ COUNTRY_NAMES = {
     "SE": "Sweden", "SI": "Slovenia", "SK": "Slovakia",
 }  # fmt: skip
 
-_HEATING_OIL_MARKERS = ("heating gas oil", "heizöl")
+HEATING_OIL = "heating_oil"
+LPG = "lpg"
+
+# How each product is named in the header of the latest and history workbooks.
+_HEADER_MARKERS = {HEATING_OIL: ("heating gas oil", "heizöl"), LPG: ("lpg",)}
+_COLUMN_SUFFIXES = {HEATING_OIL: "heating_oil", LPG: "LPG"}
 _LITRES_PER_UNIT = 1000
 _PER_LITRES = 100
 
@@ -44,18 +53,21 @@ def _to_price_per_100l(value: float) -> float:
     return round(value / _LITRES_PER_UNIT * _PER_LITRES, 2)
 
 
-def _series(points: list[tuple[date, float]]) -> PriceSeries:
+def _series(points: list[tuple[date, float]], product: str) -> PriceSeries:
     if not points:
-        raise ParseError("No heating oil prices found for this country")
+        raise ParseError(f"No {product} prices found for this country")
     return PriceSeries(
         points=sorted(points),
         source=SOURCE,
         source_url=INFO_URL,
         attribution=ATTRIBUTION,
+        extra={"price_basis": "motor_fuel"} if product == LPG else {},
     )
 
 
-def parse_latest(content: bytes, country: str) -> PriceSeries:
+def parse_latest(
+    content: bytes, country: str, product: str = HEATING_OIL
+) -> PriceSeries:
     """Parse the one-week "prices with taxes" workbook."""
     name = COUNTRY_NAMES.get(country)
     if name is None:
@@ -68,12 +80,12 @@ def parse_latest(content: bytes, country: str) -> PriceSeries:
             index
             for index, value in header.items()
             if isinstance(value, str)
-            and any(marker in value.lower() for marker in _HEATING_OIL_MARKERS)
+            and any(marker in value.lower() for marker in _HEADER_MARKERS[product])
         ),
         None,
     )
     if column is None:
-        raise ParseError("Heating oil column not found")
+        raise ParseError(f"Column for {product} not found")
 
     units = next(rows, {})
     stamp = units.get(0)
@@ -86,24 +98,46 @@ def parse_latest(content: bytes, country: str) -> PriceSeries:
         if isinstance(label, str) and label.strip() == name:
             value = row.get(column)
             if isinstance(value, float):
-                return _series([(published, _to_price_per_100l(value))])
+                return _series([(published, _to_price_per_100l(value))], product)
             break
-    return _series([])
+    return _series([], product)
 
 
-def parse_history(content: bytes, country: str) -> PriceSeries:
-    """Parse the full weekly price history workbook (prices with taxes sheet)."""
-    wanted = f"{country}_price_with_tax_heating_oil"
+def parse_histories(
+    content: bytes, country: str, products: Iterable[str]
+) -> dict[str, PriceSeries]:
+    """Parse the weekly history of several products in one pass.
+
+    The workbook is large, so all products are read together. Products without
+    any price for this country are left out of the result.
+    """
+    wanted = {f"{country}_price_with_tax_{_COLUMN_SUFFIXES[p]}": p for p in products}
     rows = iter_rows(content, sheet="Prices with taxes")
     header = next(rows, {})
-    column = next((index for index, value in header.items() if value == wanted), None)
-    if column is None:
-        raise ParseError(f"Column {wanted} not found")
+    columns = {
+        index: wanted[value] for index, value in header.items() if value in wanted
+    }
+    if not columns:
+        raise ParseError(f"Columns {list(wanted)} not found")
 
-    points: list[tuple[date, float]] = []
+    points: dict[str, list[tuple[date, float]]] = {p: [] for p in columns.values()}
     for row in rows:
         stamp = row.get(0)
-        value = row.get(column)
-        if isinstance(stamp, float) and isinstance(value, float) and value > 0:
-            points.append((excel_date(stamp), _to_price_per_100l(value)))
-    return _series(points)
+        if not isinstance(stamp, float):
+            continue
+        for column, product in columns.items():
+            value = row.get(column)
+            if isinstance(value, float) and value > 0:
+                points[product].append((excel_date(stamp), _to_price_per_100l(value)))
+
+    series = {p: _series(values, p) for p, values in points.items() if values}
+    if not series:
+        raise ParseError(f"No prices found for {country}")
+    return series
+
+
+def parse_history(
+    content: bytes, country: str, product: str = HEATING_OIL
+) -> PriceSeries:
+    """Parse the weekly history of one product (prices with taxes sheet)."""
+    return parse_histories(content, country, [product])[product]

@@ -37,18 +37,27 @@ class PriceClient:
     async def _get_json(self, url: str) -> dict[str, Any]:
         return json.loads(await self._get(url))
 
-    async def heating_oil_latest(self, country: str) -> PriceSeries:
-        """Return this week's heating oil price."""
+    async def _bulletin_latest(self, country: str, product: str) -> PriceSeries:
         content = await self._get(oil_bulletin.LATEST_URL)
         return await self._hass.async_add_executor_job(
-            oil_bulletin.parse_latest, content, country
+            oil_bulletin.parse_latest, content, country, product
         )
 
-    async def heating_oil_history(self, country: str) -> PriceSeries:
-        """Return all weekly heating oil prices since 2005 (large download)."""
+    async def heating_oil_latest(self, country: str) -> PriceSeries:
+        """Return this week's heating oil price."""
+        return await self._bulletin_latest(country, oil_bulletin.HEATING_OIL)
+
+    async def lpg_latest(self, country: str) -> PriceSeries:
+        """Return this week's price of LPG as a motor fuel."""
+        return await self._bulletin_latest(country, oil_bulletin.LPG)
+
+    async def bulletin_history(
+        self, country: str, products: list[str]
+    ) -> dict[str, PriceSeries]:
+        """Return all weekly prices since 2005 (large download)."""
         content = await self._get(oil_bulletin.HISTORY_URL, _HISTORY_TIMEOUT)
         return await self._hass.async_add_executor_job(
-            oil_bulletin.parse_history, content, country
+            oil_bulletin.parse_histories, content, country, products
         )
 
     async def pellets(self, region: str, quantity: str) -> PriceSeries:

@@ -9,17 +9,20 @@ from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ATTRIBUTION, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.heating_prices.const import (
     CONF_ANNUAL_CONSUMPTION,
     CONF_CURRENT_FUEL,
+    CONF_FUELS,
     CONF_OWN_GAS_PRICE,
     DOMAIN,
     FUEL_GAS,
+    FUEL_LPG,
     FUEL_OIL,
+    FUEL_PELLETS,
 )
 from custom_components.heating_prices.diagnostics import (
     async_get_config_entry_diagnostics,
@@ -78,7 +81,130 @@ async def test_sensors(
     cheapest = hass.states.get(entity_id(hass, config_entry, "cheapest_fuel"))
     assert cheapest is not None and cheapest.state == "pellets"
 
-    mock_client.heating_oil_history.assert_awaited_once_with("DE")
+    mock_client.bulletin_history.assert_awaited_once_with("DE", [FUEL_OIL])
+
+
+async def test_lpg_sensors(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_client: AsyncMock,
+    config_entry: MockConfigEntry,
+) -> None:
+    """LPG is shown as a motor fuel price and stays out of the comparison."""
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={
+            CONF_FUELS: [FUEL_OIL, FUEL_PELLETS, FUEL_GAS, FUEL_LPG],
+            CONF_CURRENT_FUEL: FUEL_OIL,
+            CONF_ANNUAL_CONSUMPTION: 2500,
+        },
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    lpg = hass.states.get(entity_id(hass, config_entry, "lpg_price"))
+    assert lpg is not None
+    assert float(lpg.state) == 113.02
+    assert lpg.attributes["unit_of_measurement"] == "€/100 L"
+    assert lpg.attributes["price_basis"] == "motor_fuel"
+    # Both products were read from the same history download.
+    assert lpg.attributes["previous_price"] == 102.75
+    mock_client.bulletin_history.assert_awaited_once_with("DE", [FUEL_OIL, FUEL_LPG])
+
+    rating = hass.states.get(entity_id(hass, config_entry, "lpg_rating"))
+    assert rating is not None and rating.state == "high"
+
+    registry = er.async_get(hass)
+    for unique in ("lpg_heat_price", "lpg_annual_cost"):
+        assert (
+            registry.async_get_entity_id(
+                "sensor", DOMAIN, f"{config_entry.entry_id}_{unique}"
+            )
+            is None
+        ), unique
+
+    cheapest = hass.states.get(entity_id(hass, config_entry, "cheapest_fuel"))
+    assert cheapest is not None
+    assert cheapest.state == "pellets"
+    assert "lpg_heat_price" not in cheapest.attributes
+    assert FUEL_LPG not in cheapest.attributes["options"]
+
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": f"{DOMAIN}/data"})
+    response: dict[str, Any] = await client.receive_json()
+    entry = response["result"]["entries"][0]
+    assert entry["fuels"][FUEL_LPG]["heat_price"] is None
+    assert entry["fuels"][FUEL_LPG]["extra"]["price_basis"] == "motor_fuel"
+    assert entry["fuels"][FUEL_LPG]["entities"]["heat_price"] is None
+    assert entry["cheapest"] == "pellets"
+    assert FUEL_LPG not in entry["annual"]["costs"]
+
+
+async def test_comparison_needs_two_heating_fuels(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """Oil and LPG alone are nothing to compare."""
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry, options={CONF_FUELS: [FUEL_OIL, FUEL_LPG]}
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert (
+        er.async_get(hass).async_get_entity_id(
+            "sensor", DOMAIN, f"{config_entry.entry_id}_cheapest_fuel"
+        )
+        is None
+    )
+    assert hass.states.get(entity_id(hass, config_entry, "lpg_price")) is not None
+
+
+async def test_adding_lpg_loads_its_history(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """A cached oil history does not stop LPG from getting its own."""
+    await setup(hass, config_entry)
+    mock_client.bulletin_history.assert_awaited_once_with("DE", [FUEL_OIL])
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+
+    hass.config_entries.async_update_entry(
+        config_entry, options={CONF_FUELS: [FUEL_OIL, FUEL_LPG]}
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    mock_client.bulletin_history.assert_awaited_with("DE", [FUEL_OIL, FUEL_LPG])
+
+    lpg = hass.states.get(entity_id(hass, config_entry, "lpg_price"))
+    assert lpg is not None and lpg.attributes["previous_price"] == 102.75
+
+    # Now that both are covered, a reload does not download the file again.
+    mock_client.bulletin_history.reset_mock()
+    assert await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    mock_client.bulletin_history.assert_not_awaited()
+
+
+async def test_deselected_fuel_is_removed(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """Sensors and the device of a fuel disappear when it is deselected."""
+    await setup(hass, config_entry)
+    gas_price = entity_id(hass, config_entry, "natural_gas_price")
+    devices = dr.async_get(hass)
+    gas_device = (DOMAIN, f"{config_entry.entry_id}_{FUEL_GAS}")
+    assert devices.async_get_device(identifiers={gas_device}) is not None
+
+    # Changing the options reloads the entry.
+    hass.config_entries.async_update_entry(
+        config_entry, options={CONF_FUELS: [FUEL_OIL, FUEL_PELLETS]}
+    )
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert er.async_get(hass).async_get(gas_price) is None
+    assert devices.async_get_device(identifiers={gas_device}) is None
+    assert hass.states.get(entity_id(hass, config_entry, "pellets_price")) is not None
 
 
 async def test_unload(

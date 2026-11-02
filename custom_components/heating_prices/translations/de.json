@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Heizpreise",
-        "description": "Die Preise stammen aus offenen Daten: EU Weekly Oil Bulletin (Heizöl, wöchentlich), Deutsches Pelletinstitut (Pellets, monatlich, nur Deutschland) und Eurostat (Erdgas).",
+        "description": "Die Preise stammen aus offenen Daten: EU Weekly Oil Bulletin (Heizöl und Flüssiggas, wöchentlich), Deutsches Pelletinstitut (Pellets, monatlich, nur Deutschland) und Eurostat (Erdgas).",
         "data": {
           "country": "Land",
           "fuels": "Brennstoffe"
         },
         "data_description": {
           "country": "Die Preise sind Landesdurchschnitte inklusive aller Steuern.",
-          "fuels": "Für ein weiteres Land kannst du die Integration erneut hinzufügen."
+          "fuels": "Für ein weiteres Land kannst du die Integration erneut hinzufügen. Beim Flüssiggas ist es der amtliche Preis für Autogas. Flüssiggas zum Heizen wird anders besteuert und kann mehr oder weniger kosten, deshalb gehört es nicht zum Heizkostenvergleich."
         }
       },
       "pellets": {
@@ -39,6 +39,8 @@
       "quantity_regional_only": "Preise für 3 t werden nur je Region veröffentlicht. Wähle eine Region oder 6 t bzw. 26 t.",
       "oil_no_data": "Das Oil Bulletin enthält für dieses Land keinen Heizölpreis.",
       "oil_cannot_connect": "Das EU Weekly Oil Bulletin ist nicht erreichbar.",
+      "lpg_no_data": "Das Oil Bulletin enthält für dieses Land keinen Flüssiggaspreis.",
+      "lpg_cannot_connect": "Das EU Weekly Oil Bulletin ist nicht erreichbar.",
       "pellets_no_data": "Für diese Region und Liefermenge wurde kein Pelletpreis gefunden.",
       "pellets_cannot_connect": "Die Webseite des Deutschen Pelletinstituts ist nicht erreichbar.",
       "gas_no_data": "Eurostat hat für dieses Land und diesen Verbrauch keinen Gaspreis.",
@@ -51,6 +53,13 @@
   "options": {
     "step": {
       "init": {
+        "title": "Heizpreise Optionen",
+        "description": "Wähle, welche Preise angezeigt werden. Beim Flüssiggas ist es der amtliche Preis für Autogas. Flüssiggas zum Heizen wird anders besteuert und kann mehr oder weniger kosten, deshalb gehört es nicht zum Heizkostenvergleich.",
+        "data": {
+          "fuels": "Brennstoffe"
+        }
+      },
+      "settings": {
         "title": "Heizpreise Optionen",
         "description": "Trage ein, was du selbst zahlst, um es mit dem Marktpreis zu vergleichen. Mit deinem Brennstoff und Jahresverbrauch berechnet die Integration außerdem deine Heizkosten pro Jahr für jeden Brennstoff.",
         "data": {
@@ -69,8 +78,18 @@
       }
     },
     "error": {
+      "no_fuels": "Wähle mindestens einen Brennstoff aus.",
+      "pellets_unavailable": "Pelletpreise gibt es nur für Deutschland.",
       "quantity_regional_only": "Preise für 3 t werden nur je Region veröffentlicht. Wähle eine Region oder 6 t bzw. 26 t.",
-      "current_fuel_required": "Wähle den Brennstoff, auf den sich dein Verbrauch bezieht."
+      "current_fuel_required": "Wähle den Brennstoff, auf den sich dein Verbrauch bezieht.",
+      "oil_no_data": "Das Oil Bulletin enthält für dieses Land keinen Heizölpreis.",
+      "oil_cannot_connect": "Das EU Weekly Oil Bulletin ist nicht erreichbar.",
+      "lpg_no_data": "Das Oil Bulletin enthält für dieses Land keinen Flüssiggaspreis.",
+      "lpg_cannot_connect": "Das EU Weekly Oil Bulletin ist nicht erreichbar.",
+      "pellets_no_data": "Für diese Region und Liefermenge wurde kein Pelletpreis gefunden.",
+      "pellets_cannot_connect": "Die Webseite des Deutschen Pelletinstituts ist nicht erreichbar.",
+      "gas_no_data": "Eurostat hat für dieses Land und diesen Verbrauch keinen Gaspreis.",
+      "gas_cannot_connect": "Eurostat ist nicht erreichbar."
     }
   },
   "selector": {
@@ -78,7 +97,8 @@
       "options": {
         "heating_oil": "Heizöl",
         "pellets": "Holzpellets (Deutschland)",
-        "natural_gas": "Erdgas"
+        "natural_gas": "Erdgas",
+        "lpg": "Flüssiggas (Autogas-Preis)"
       }
     },
     "pellet_region": {
@@ -108,6 +128,7 @@
     "heating_oil": { "name": "Heizöl" },
     "pellets": { "name": "Holzpellets" },
     "natural_gas": { "name": "Erdgas" },
+    "lpg": { "name": "Flüssiggas (Autogas)" },
     "comparison": { "name": "Heizkostenvergleich" }
   },
   "entity": {
@@ -115,6 +136,7 @@
       "heating_oil_price": { "name": "Preis" },
       "pellets_price": { "name": "Preis" },
       "natural_gas_price": { "name": "Preis" },
+      "lpg_price": { "name": "Preis" },
       "heat_price": { "name": "Preis pro kWh Wärme" },
       "change": { "name": "Veränderung" },
       "rating": {

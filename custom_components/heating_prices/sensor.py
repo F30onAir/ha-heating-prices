@@ -1,4 +1,4 @@
-"""Sensors for heating oil, wood pellet and natural gas prices."""
+"""Sensors for heating oil, wood pellet, natural gas and LPG prices."""
 
 from __future__ import annotations
 
@@ -13,17 +13,18 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import PERCENTAGE
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    COMPARABLE_FUELS,
     CONSUMPTION_UNITS,
     DOMAIN,
     FUEL_UNITS,
-    OWN_PRICE_KEYS,
     RATINGS,
     UNIT_HEAT,
 )
@@ -102,9 +103,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors for every enabled fuel."""
     coordinator = entry.runtime_data
+    comparable = coordinator.comparable_fuels
     entities: list[SensorEntity] = []
     for fuel in coordinator.fuels:
         for description in DESCRIPTIONS:
+            if description.key == "heat_price" and fuel not in COMPARABLE_FUELS:
+                continue
             # The price sensor gets a per-fuel unit, name and icon.
             fuel_description = (
                 replace(
@@ -116,12 +120,12 @@ async def async_setup_entry(
                 else description
             )
             entities.append(FuelSensor(coordinator, fuel, fuel_description))
-    if len(coordinator.fuels) > 1:
+    if len(comparable) > 1:
         entities.append(CheapestFuelSensor(coordinator))
 
     # Cost sensors only make sense once the user entered their consumption.
     if coordinator.annual_costs is not None:
-        for fuel in coordinator.fuels:
+        for fuel in comparable:
             entities.append(
                 CostSensor(
                     coordinator,
@@ -133,12 +137,36 @@ async def async_setup_entry(
                     ),
                 )
             )
-        if len(coordinator.fuels) > 1:
+        if len(comparable) > 1:
             entities.extend(
                 CostSensor(coordinator, "comparison", description)
                 for description in COMPARISON_COST_DESCRIPTIONS
             )
+    _async_remove_stale_entities(hass, entry, entities)
     async_add_entities(entities)
+
+
+@callback
+def _async_remove_stale_entities(
+    hass: HomeAssistant, entry: HeatingPricesConfigEntry, entities: list[SensorEntity]
+) -> None:
+    """Remove what the options no longer provide, such as a deselected fuel."""
+    expected = {entity.unique_id for entity in entities}
+    entity_registry = er.async_get(hass)
+    for entity_entry in er.async_entries_for_config_entry(
+        entity_registry, entry.entry_id
+    ):
+        if entity_entry.unique_id not in expected:
+            entity_registry.async_remove(entity_entry.entity_id)
+
+    device_registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+        if not er.async_entries_for_device(
+            entity_registry, device.id, include_disabled_entities=True
+        ):
+            device_registry.async_update_device(
+                device.id, remove_config_entry_id=entry.entry_id
+            )
 
 
 class HeatingPricesEntity(CoordinatorEntity[HeatingPricesCoordinator]):
@@ -229,7 +257,7 @@ class FuelSensor(HeatingPricesEntity, SensorEntity):
             "source_url": price.source_url,
         }
         attributes.update(price.extra)
-        own_price = self.coordinator.settings.get(OWN_PRICE_KEYS[self.fuel])
+        own_price = self.coordinator.own_price(self.fuel)
         if own_price:
             attributes["own_price"] = own_price
             attributes["own_diff_pct"] = round(
@@ -248,7 +276,7 @@ class CheapestFuelSensor(HeatingPricesEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator, "comparison")
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_cheapest_fuel"
-        self._attr_options = coordinator.fuels
+        self._attr_options = coordinator.comparable_fuels
 
     @property
     def native_value(self) -> str | None:
@@ -257,10 +285,11 @@ class CheapestFuelSensor(HeatingPricesEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Heat price of every fuel in ct/kWh."""
+        """Heat price of every comparable fuel in ct/kWh."""
         return {
             f"{fuel}_heat_price": price.heat_price
             for fuel, price in (self.coordinator.data or {}).items()
+            if price.heat_price is not None
         }
 
 

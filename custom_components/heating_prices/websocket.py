@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 import voluptuous as vol
 
-from .const import CONF_COUNTRY, CONSUMPTION_UNITS, DOMAIN, OWN_PRICE_KEYS
+from .const import CONF_COUNTRY, CONSUMPTION_UNITS, DOMAIN
 from .coordinator import HeatingPricesConfigEntry
 from .models import FuelPrice
 
@@ -55,9 +55,10 @@ def fuel_payload(price: FuelPrice, own_price: float | None) -> dict[str, Any]:
 
 def cheapest_fuel(data: dict[str, FuelPrice]) -> str | None:
     """Fuel with the lowest price per kWh of heat."""
-    if len(data) < 2:
+    prices = [price for price in data.values() if price.heat_price is not None]
+    if len(prices) < 2:
         return None
-    return min(data.values(), key=lambda price: price.heat_price).fuel
+    return min(prices, key=lambda price: price.heat_price).fuel
 
 
 def _entry_payload(
@@ -68,7 +69,7 @@ def _entry_payload(
     settings = coordinator.settings
     fuels: dict[str, Any] = {}
     for fuel, price in (coordinator.data or {}).items():
-        payload = fuel_payload(price, settings.get(OWN_PRICE_KEYS[fuel]))
+        payload = fuel_payload(price, coordinator.own_price(fuel))
         payload["entities"] = {
             key: registry.async_get_entity_id(
                 "sensor", DOMAIN, f"{entry.entry_id}_{fuel}_{key}"

@@ -17,6 +17,7 @@ from custom_components.heating_prices.const import (
     CONF_PELLET_REGION,
     DOMAIN,
     FUEL_GAS,
+    FUEL_LPG,
     FUEL_OIL,
     FUEL_PELLETS,
 )
@@ -46,6 +47,34 @@ def oil_history() -> PriceSeries:
         source_url="https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en",
         attribution="Source: European Commission, Weekly Oil Bulletin",
     )
+
+
+def lpg_latest() -> PriceSeries:
+    """This week's price of LPG as a motor fuel."""
+    return PriceSeries(
+        points=[(date(2026, 10, 26), 113.02)],
+        source="EU Weekly Oil Bulletin",
+        source_url="https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en",
+        attribution="Source: European Commission, Weekly Oil Bulletin",
+        extra={"price_basis": "motor_fuel"},
+    )
+
+
+def lpg_history() -> PriceSeries:
+    """A year of weekly LPG prices before this week."""
+    return PriceSeries(
+        points=_weekly([90.0 + i * 0.25 for i in range(52)], date(2026, 10, 19)),
+        source="EU Weekly Oil Bulletin",
+        source_url="https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en",
+        attribution="Source: European Commission, Weekly Oil Bulletin",
+        extra={"price_basis": "motor_fuel"},
+    )
+
+
+def bulletin_history(country: str, products: list[str]) -> dict[str, PriceSeries]:
+    """The requested products from the long history file."""
+    histories = {FUEL_OIL: oil_history(), FUEL_LPG: lpg_history()}
+    return {product: histories[product] for product in products}
 
 
 def pellets() -> PriceSeries:
@@ -89,7 +118,8 @@ def mock_client() -> Generator[AsyncMock]:
     ):
         client = client_class.return_value
         client.heating_oil_latest.return_value = oil_latest()
-        client.heating_oil_history.return_value = oil_history()
+        client.lpg_latest.return_value = lpg_latest()
+        client.bulletin_history.side_effect = bulletin_history
         client.pellets.return_value = pellets()
         client.natural_gas.return_value = natural_gas()
         yield client
@@ -97,7 +127,7 @@ def mock_client() -> Generator[AsyncMock]:
 
 @pytest.fixture
 def config_entry() -> MockConfigEntry:
-    """An entry for Germany with all fuels."""
+    """An entry for Germany with all heating fuels."""
     return MockConfigEntry(
         domain=DOMAIN,
         title="Deutschland",
