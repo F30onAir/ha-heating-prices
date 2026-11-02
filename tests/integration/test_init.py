@@ -192,9 +192,19 @@ async def test_deselected_fuel_is_removed(
     """Sensors and the device of a fuel disappear when it is deselected."""
     await setup(hass, config_entry)
     gas_price = entity_id(hass, config_entry, "natural_gas_price")
-    devices = dr.async_get(hass)
     gas_device = (DOMAIN, f"{config_entry.entry_id}_{FUEL_GAS}")
-    assert devices.async_get_device(identifiers={gas_device}) is not None
+    oil_device = (DOMAIN, f"{config_entry.entry_id}_{FUEL_OIL}")
+
+    def device_identifiers() -> set[tuple[str, str]]:
+        return {
+            identifier
+            for device in dr.async_entries_for_config_entry(
+                dr.async_get(hass), config_entry.entry_id
+            )
+            for identifier in device.identifiers
+        }
+
+    assert gas_device in device_identifiers()
 
     # Changing the options reloads the entry.
     hass.config_entries.async_update_entry(
@@ -203,7 +213,8 @@ async def test_deselected_fuel_is_removed(
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert er.async_get(hass).async_get(gas_price) is None
-    assert devices.async_get_device(identifiers={gas_device}) is None
+    assert gas_device not in device_identifiers()
+    assert oil_device in device_identifiers()
     assert hass.states.get(entity_id(hass, config_entry, "pellets_price")) is not None
 
 
