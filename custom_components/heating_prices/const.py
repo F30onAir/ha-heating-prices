@@ -6,14 +6,22 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "heating_prices"
-VERSION: Final = "0.3.0"
+VERSION: Final = "1.0.0"
 
 PROJECT_URL: Final = "https://github.com/F30onAir/ha-heating-prices"
 USER_AGENT: Final = f"HomeAssistant-HeatingPrices/{VERSION} (+{PROJECT_URL})"
+# Lets the project stop the TECSON requests of all installations.
+SOURCES_URL: Final = (
+    "https://raw.githubusercontent.com/F30onAir/ha-heating-prices/main/sources.json"
+)
 
 UPDATE_INTERVAL: Final = timedelta(hours=6)
 # The full EU oil price history is large (~4.5 MB), so it is only re-read monthly.
 OIL_HISTORY_MAX_AGE: Final = timedelta(days=30)
+# TECSON only publishes its daily heating oil price for Germany.
+DAILY_OIL_COUNTRY: Final = "DE"
+# Without a newer value the daily price is of no use anymore.
+DAILY_OIL_MAX_AGE: Final = timedelta(days=7)
 
 CONF_COUNTRY: Final = "country"
 CONF_FUELS: Final = "fuels"

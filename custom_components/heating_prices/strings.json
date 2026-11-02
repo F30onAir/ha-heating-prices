@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Heating prices",
-        "description": "Prices come from open data: the EU Weekly Oil Bulletin (heating oil and LPG, weekly), the Deutsches Pelletinstitut (wood pellets, monthly, Germany only) and Eurostat (natural gas).",
+        "description": "Prices come from the EU Weekly Oil Bulletin (heating oil and LPG, weekly), the Deutsches Pelletinstitut (wood pellets, monthly, Germany only) and Eurostat (natural gas). In Germany, the daily heating oil price from TECSON is added with TECSON's permission.",
         "data": {
           "country": "Country",
           "fuels": "Fuels"
@@ -179,6 +179,7 @@
       "pellets_price": { "name": "Price" },
       "natural_gas_price": { "name": "Price" },
       "lpg_price": { "name": "Price" },
+      "daily_price": { "name": "Daily price" },
       "heat_price": { "name": "Price per kWh of heat" },
       "change": { "name": "Change" },
       "rating": {

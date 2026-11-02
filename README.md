@@ -6,19 +6,24 @@
 
 Aktuelle **Heizöl-, Pellet-, Erdgas- und Flüssiggaspreise** direkt in Home Assistant, mit einer
 Dashboard-Karte, die Verlauf, Trend und den Wärmepreis pro kWh vergleicht.
-Alle Daten stammen aus **offenen, amtlichen Quellen**. Es gibt kein Scraping von
-Händlerseiten und es wird kein API-Schlüssel gebraucht.
+Die Preise stammen aus **offenen, amtlichen Quellen**. In Deutschland kommt mit
+Genehmigung von [TECSON](https://www.tecson.de/de/heizoelpreise.html) ein
+Heizöl-Tagespreis dazu. Händlerportale werden nicht ausgelesen und es wird kein
+API-Schlüssel gebraucht.
 
 *English below.*
 
 ![Dashboard-Karte](docs/card.png)
 
-*Echte Preise vom 01.11.2026. Eigener Preis, Verbrauch und Käufe sind Beispiele.*
+*Preise der amtlichen Quellen vom 01.11.2026. Tagespreis, eigener Preis, Verbrauch und
+Käufe sind Beispiele.*
 
 ## Funktionen
 
 - **Heizöl** – wöchentlicher Durchschnittspreis inkl. aller Steuern für 27 EU-Länder,
   mit Verlauf seit 2005
+- **Heizöl-Tagespreis** – in Deutschland zusätzlich der tägliche Durchschnittspreis von
+  [TECSON](https://www.tecson.de/de/heizoelpreise.html), als eigene Zeile und eigener Sensor
 - **Holzpellets** – monatlicher DEPI-Preis für Deutschland, bundesweit oder regional
   (Nord/Ost, Mitte, Süd) für 3, 6 oder 26 Tonnen
 - **Erdgas** – Haushaltspreis von Eurostat für 27 EU-Länder, mit dem monatlichen
@@ -103,6 +108,7 @@ Für jeden Brennstoff entsteht ein Gerät mit diesen Sensoren:
 | Sensor | Beispiel | Beschreibung |
 |---|---|---|
 | Preis | `175,01 €/100 L` | Aktueller Preis, Attribute mit Min/Max/Ø über 12 Monate |
+| Tagespreis | `178,40 €/100 L` | Nur Heizöl in Deutschland: TECSON-Durchschnitt des Tages. Quelle: TECSON |
 | Preis pro kWh Wärme | `17,50 ct/kWh` | Für den Vergleich zwischen den Brennstoffen, nicht bei Flüssiggas |
 | Veränderung | `2,2 %` | Gegenüber der Vorwoche bzw. dem Vormonat |
 | Preisbewertung | `Teuer` | Günstig / Normal / Teuer im Vergleich zu 12 Monaten |
@@ -149,6 +155,7 @@ Vergleich zu den letzten 12 Monaten).“*
 | Brennstoff | Quelle | Aktualisierung | Lizenz |
 |---|---|---|---|
 | Heizöl | [EU Weekly Oil Bulletin](https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en) (Europäische Kommission) | wöchentlich | Wiedergabe mit Quellenangabe erlaubt |
+| Heizöl-Tagespreis (nur Deutschland) | [TECSON](https://www.tecson.de/de/heizoelpreise.html) | laut TECSON morgens vor 10 Uhr | Mit Genehmigung von TECSON, siehe [unten](#heizöl-tagespreis-von-tecson) |
 | Holzpellets | [DEPI-Pelletpreis](https://www.depi.de/pelletpreis-wirtschaftlichkeit/) (Deutsches Pelletinstitut) | monatlich | Honorarfrei mit Quellenangabe |
 | Erdgas | [Eurostat nrg_pc_202 und prc_hicp_minr](https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_202/default/table) | halbjährlich und Index monatlich | CC BY 4.0 |
 | Flüssiggas (Autogas) | [EU Weekly Oil Bulletin](https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en) (Europäische Kommission) | wöchentlich | Wiedergabe mit Quellenangabe erlaubt |
@@ -159,6 +166,36 @@ Die Integration fragt die Quellen alle 6 Stunden ab. Die große Historie des Oil
 **Warum keine tagesaktuellen Händlerpreise?** Portale wie HeizOel24 oder HeizPellets24
 verbieten in ihren AGB den automatisierten Abruf. Diese Integration nutzt deshalb nur
 Quellen, deren Daten ausdrücklich weiterverwendet werden dürfen.
+
+### Heizöl-Tagespreis von TECSON
+
+**Quelle: [TECSON](https://www.tecson.de/de/heizoelpreise.html)**
+
+Der Tagespreis ist der Durchschnittspreis, den TECSON für Deutschland bei einer Lieferung
+von 3.000 L inklusive Mehrwertsteuer angibt. Die Karte zeigt ihn als eigene Zeile in der
+Heizöl-Kachel, dazu gibt es einen eigenen Sensor. Verlauf, Veränderung, Preisbewertung,
+Wärmepreis, Heizkosten-Rechner und letzter Kauf nutzen weiter den EU-Preis, weil sich beide
+Reihen unterscheiden und gemischt falsche Veränderungen ergäben.
+
+TECSON hat diese Nutzung genehmigt und bietet dafür keine Schnittstelle an. Die Integration
+liest den Wert deshalb von der TECSON-Seite und hält sich an diese Regeln:
+
+- höchstens ein Abruf alle 6 Stunden je Installation, auch über Neustarts hinweg
+- eine eindeutige Kennung (User-Agent) und ein Zwischenspeicher
+- nur dieser eine Wert, keine Marktberichte, Prognosen oder Verläufe von TECSON
+- keine Weitergabe: Der Wert bleibt in deinem Home Assistant und fehlt auch in den Diagnosedaten
+- nicht kommerziell und ohne Werbung
+
+TECSON übernimmt keine Gewähr für die Verfügbarkeit. Wenn sich die Seite ändert oder nicht
+erreichbar ist, bleibt der letzte Wert mit seinem Datum stehen, nach 7 Tagen ist der Sensor
+nicht mehr verfügbar. Die übrigen Preise sind davon nicht betroffen.
+
+TECSON kann die Nutzung jederzeit beenden lassen. Deshalb liest die Integration vor jedem
+Abruf die Datei [`sources.json`](sources.json) aus diesem Repository von GitHub. Steht dort
+`false` oder ist die Datei nicht lesbar, wird die TECSON-Seite nicht abgerufen. Damit lässt
+sich der Abruf für alle Installationen abschalten, auch für ältere Versionen.
+
+Die Genehmigung gilt nur für dieses Projekt, nicht für Forks oder andere Software.
 
 **Warum ist der Gaspreis „geschätzt“?** Eurostat veröffentlicht Haushaltsgaspreise nur
 halbjährlich. Der letzte amtliche Wert wird mit dem monatlichen Gaspreisindex
@@ -189,9 +226,10 @@ abweichen. Dieses Projekt steht in keiner Verbindung zu den genannten Datenquell
 ## English
 
 **Heating Prices** brings heating oil, wood pellet, natural gas and LPG prices into
-Home Assistant, using open data only:
+Home Assistant, using open data and, for Germany, a daily price used with permission:
 
 - **Heating oil**: weekly consumer prices incl. taxes for 27 EU countries (EU Weekly Oil Bulletin), history back to 2005
+- **Daily heating oil price**: in Germany also the average price of the day from [TECSON](https://www.tecson.de/de/heizoelpreise.html), shown as an extra line and sensor. It is used with TECSON's permission for this project only, requested at most once per 6 hours per installation and kept inside your Home Assistant. Before each request the integration reads [`sources.json`](sources.json) from this repository, so the requests can be stopped for all installations if TECSON asks for it.
 - **Wood pellets**: monthly DEPI price for Germany, nationwide or by region
 - **Natural gas**: Eurostat household price for 27 EU countries, carried forward with the monthly gas price index (marked as an estimate)
 - **LPG**: official EU Oil Bulletin price of LPG as a motor fuel (Autogas) for 19 EU countries. LPG for heating is taxed differently and has no official price, so this value is labelled as a motor fuel price and stays out of the per-kWh comparison and the cost calculator. Enable it under *Configure*.

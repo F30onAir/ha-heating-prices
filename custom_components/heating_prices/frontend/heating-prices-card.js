@@ -4,7 +4,7 @@
  * per-kWh comparison. Data comes from the heating_prices integration.
  */
 
-const CARD_VERSION = "0.3.0";
+const CARD_VERSION = "1.0.0";
 const FUELS = ["heating_oil", "pellets", "natural_gas", "lpg"];
 const RANGES = { "6m": 183, "1y": 365, "3y": 1096, max: Infinity };
 
@@ -53,6 +53,9 @@ const I18N = {
     cheaper: (amount) => `${amount} € günstiger`,
     unchanged: "unverändert",
     purchase_estimated_hint: "Dein Preis, fortgeschrieben mit dem Autogas-Preis seit dem Kauf.",
+    daily_price: "Tagespreis",
+    daily_hint: (quantity) => `Durchschnittspreis von TECSON für Deutschland bei ${quantity} L, inkl. MwSt. Verlauf, Bewertung und Kostenvergleich nutzen weiter den EU-Preis.`,
+    source: "Quelle",
     sources: "Quellen",
     no_entry: "Die Integration Heizpreise ist noch nicht eingerichtet.",
     error: "Preise konnten nicht geladen werden",
@@ -102,6 +105,9 @@ const I18N = {
     cheaper: (amount) => `${amount} € less`,
     unchanged: "unchanged",
     purchase_estimated_hint: "Your price, carried forward with the motor fuel price since the purchase.",
+    daily_price: "Daily price",
+    daily_hint: (quantity) => `TECSON's average price for Germany at ${quantity} L, VAT included. The chart, rating and cost comparison keep using the EU price.`,
+    source: "Source",
     sources: "Sources",
     no_entry: "The Heating Prices integration is not set up yet.",
     error: "Prices could not be loaded",
@@ -234,7 +240,7 @@ class HeatingPricesCard extends HTMLElement {
   }
 
   _computeWatchKey() {
-    const entities = Object.values(this._data?.fuels || {}).map((f) => f.entities?.price).filter(Boolean);
+    const entities = Object.values(this._data?.fuels || {}).flatMap((f) => [f.entities?.price, f.entities?.daily_price]).filter(Boolean);
     return entities.map((id) => this._hass.states[id]?.last_updated || "").join("|");
   }
 
@@ -312,6 +318,7 @@ class HeatingPricesCard extends HTMLElement {
           <span class="period">${esc(periodLabel(hass, fuel, info, t))}</span>
           ${flags}
         </div>
+        ${this._daily(info, t)}
         ${sparkline(history, style.color, fuel)}
         <div class="stats">
           <span>${esc(t.min)} <b>${number(hass, info.min_12m)}</b></span>
@@ -320,6 +327,19 @@ class HeatingPricesCard extends HTMLElement {
         </div>
         ${own}
         ${this._purchase(info, t)}
+      </div>`;
+  }
+
+  _daily(info, t) {
+    const daily = info.daily_price;
+    if (!daily) return "";
+    const hass = this._hass;
+    const date = parseDate(daily.date);
+    const day = new Intl.DateTimeFormat(lang(hass), { day: "2-digit", month: "2-digit" }).format(date);
+    return `
+      <div class="daily" title="${esc(t.daily_hint(number(hass, daily.quantity, 0)))}">
+        <span>${esc(t.daily_price)} <b>${number(hass, daily.price)} ${esc(info.unit)}</b></span>
+        <span>${esc(t.weekdays[date.getDay()])} ${esc(day)} · <a href="${esc(daily.source_url)}" target="_blank" rel="noreferrer">${esc(t.source)}: ${esc(daily.source)}</a></span>
       </div>`;
   }
 
@@ -411,6 +431,10 @@ class HeatingPricesCard extends HTMLElement {
     } else {
       const fuels = this._fuels();
       const sourceLinks = new Map(fuels.map((f) => [this._data.fuels[f].source, this._data.fuels[f].source_url]));
+      fuels.forEach((f) => {
+        const daily = this._data.fuels[f].daily_price;
+        if (daily) sourceLinks.set(daily.source, daily.source_url);
+      });
       const sources = [...sourceLinks]
         .map(([name, url]) => `<a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(name)}</a>`)
         .join(" · ");
@@ -452,9 +476,12 @@ class HeatingPricesCard extends HTMLElement {
           detail: { entityId: tile.dataset.entity }, bubbles: true, composed: true,
         }));
       };
-      tile.addEventListener("click", open);
+      // A source link inside the tile opens the source, not the sensor.
+      tile.addEventListener("click", (ev) => {
+        if (!ev.target.closest("a")) open();
+      });
       tile.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter" || ev.key === " ") {
+        if (!ev.target.closest("a") && (ev.key === "Enter" || ev.key === " ")) {
           ev.preventDefault();
           open();
         }
@@ -497,6 +524,9 @@ const STYLES = `
   .chip.flat { background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent); }
   .flag { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; padding: 2px 6px; border-radius: 6px; border: 1px dashed var(--divider-color, rgba(127,127,127,.4)); cursor: help; }
   .flag.warn { color: var(--warning-color, #f39c12); border-color: currentColor; --mdc-icon-size: 14px; }
+  .daily { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; margin-top: 8px; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--fuel-color) 10%, transparent); font-size: 0.78rem; color: var(--secondary-text-color); }
+  .daily b { color: var(--primary-text-color); font-variant-numeric: tabular-nums; }
+  .daily a { color: inherit; }
   .spark { display: block; width: 100%; height: 64px; margin: 10px 0 6px; overflow: visible; }
   .stats { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--secondary-text-color); gap: 6px; }
   .stats b { color: var(--primary-text-color); font-weight: 600; font-variant-numeric: tabular-nums; }

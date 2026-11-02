@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
 from aiohttp import ClientError
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ATTRIBUTION, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
 from custom_components.heating_prices.const import (
     CONF_ANNUAL_CONSUMPTION,
+    CONF_COUNTRY,
     CONF_CURRENT_FUEL,
     CONF_FUELS,
     CONF_LAST_PURCHASES,
@@ -31,6 +35,7 @@ from custom_components.heating_prices.const import (
 from custom_components.heating_prices.diagnostics import (
     async_get_config_entry_diagnostics,
 )
+from custom_components.heating_prices.providers.tecson import DailyPrice
 
 
 def entity_id(hass: HomeAssistant, entry: MockConfigEntry, unique: str) -> str:
@@ -482,6 +487,163 @@ async def test_last_purchase_of_lpg(
     assert difference.attributes["cost_now"] == 1547
 
 
+async def test_daily_oil(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_client: AsyncMock,
+    config_entry: MockConfigEntry,
+) -> None:
+    """TECSON's price of the day is shown with its source, next to the EU price."""
+    await setup(hass, config_entry)
+
+    daily = hass.states.get(entity_id(hass, config_entry, "heating_oil_daily_price"))
+    assert daily is not None
+    assert float(daily.state) == 178.4
+    assert daily.attributes["unit_of_measurement"] == "€/100 L"
+    assert daily.attributes["quantity_l"] == 3000
+    assert daily.attributes["period"] == dt_util.now().date().isoformat()
+    assert daily.attributes[ATTR_ATTRIBUTION] == "Quelle: TECSON"
+    assert daily.attributes["source_url"] == (
+        "https://www.tecson.de/de/heizoelpreise.html"
+    )
+
+    # Everything else keeps using the EU price.
+    oil = hass.states.get(entity_id(hass, config_entry, "heating_oil_price"))
+    assert oil is not None and float(oil.state) == 175.01
+    change = hass.states.get(entity_id(hass, config_entry, "heating_oil_change"))
+    assert change is not None and float(change.state) == 2.3
+
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": f"{DOMAIN}/data"})
+    response: dict[str, Any] = await client.receive_json()
+    fuels = response["result"]["entries"][0]["fuels"]
+    assert fuels[FUEL_OIL]["daily_price"]["price"] == 178.4
+    assert fuels[FUEL_OIL]["daily_price"]["source"] == "TECSON"
+    assert fuels[FUEL_OIL]["entities"]["daily_price"] == daily.entity_id
+    assert "daily_price" not in fuels[FUEL_PELLETS]
+
+
+async def test_daily_oil_at_most_every_six_hours(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    mock_client: AsyncMock,
+    config_entry: MockConfigEntry,
+) -> None:
+    """Refreshes, reloads and restarts do not cause extra requests to TECSON."""
+    await setup(hass, config_entry)
+    mock_client.daily_oil.assert_awaited_once()
+
+    await config_entry.runtime_data.async_refresh()
+    assert await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    mock_client.daily_oil.assert_awaited_once()
+    daily = hass.states.get(entity_id(hass, config_entry, "heating_oil_daily_price"))
+    assert daily is not None and float(daily.state) == 178.4
+
+    freezer.tick(timedelta(hours=5, minutes=59))
+    await config_entry.runtime_data.async_refresh()
+    mock_client.daily_oil.assert_awaited_once()
+
+    freezer.tick(timedelta(minutes=1))
+    await config_entry.runtime_data.async_refresh()
+    assert mock_client.daily_oil.await_count == 2
+
+
+async def test_daily_oil_failure(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    mock_client: AsyncMock,
+    config_entry: MockConfigEntry,
+) -> None:
+    """A failed request counts as a request, the other prices keep working."""
+    mock_client.daily_oil.side_effect = ClientError()
+    await setup(hass, config_entry)
+    assert config_entry.state is ConfigEntryState.LOADED
+
+    daily = hass.states.get(entity_id(hass, config_entry, "heating_oil_daily_price"))
+    assert daily is not None and daily.state == STATE_UNAVAILABLE
+    oil = hass.states.get(entity_id(hass, config_entry, "heating_oil_price"))
+    assert oil is not None and float(oil.state) == 175.01
+
+    await config_entry.runtime_data.async_refresh()
+    mock_client.daily_oil.assert_awaited_once()
+
+    freezer.tick(timedelta(hours=6))
+    await config_entry.runtime_data.async_refresh()
+    assert mock_client.daily_oil.await_count == 2
+
+
+async def test_daily_oil_switched_off(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    mock_client: AsyncMock,
+    config_entry: MockConfigEntry,
+) -> None:
+    """The switch in the repository stops the requests and removes the value."""
+    await setup(hass, config_entry)
+    mock_client.daily_oil.assert_awaited_once()
+
+    mock_client.daily_oil_allowed.return_value = False
+    freezer.tick(timedelta(hours=6))
+    await config_entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    mock_client.daily_oil.assert_awaited_once()
+    daily = hass.states.get(entity_id(hass, config_entry, "heating_oil_daily_price"))
+    assert daily is not None and daily.state == STATE_UNAVAILABLE
+
+
+async def test_daily_oil_needs_the_switch(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """If the switch cannot be read, TECSON is not requested."""
+    mock_client.daily_oil_allowed.side_effect = ClientError()
+    await setup(hass, config_entry)
+    mock_client.daily_oil.assert_not_awaited()
+
+
+async def test_daily_oil_too_old(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """A value that was not renewed for over a week is no longer a daily price."""
+    mock_client.daily_oil.return_value = DailyPrice(
+        day=dt_util.now().date() - timedelta(days=8), price=178.4, quantity=3000
+    )
+    await setup(hass, config_entry)
+    daily = hass.states.get(entity_id(hass, config_entry, "heating_oil_daily_price"))
+    assert daily is not None and daily.state == STATE_UNAVAILABLE
+
+
+async def test_daily_oil_only_for_german_heating_oil(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """Other countries and entries without heating oil do not request TECSON."""
+    austria = MockConfigEntry(
+        domain=DOMAIN,
+        title="Österreich",
+        unique_id="AT",
+        data={CONF_COUNTRY: "AT", CONF_FUELS: [FUEL_OIL]},
+    )
+    await setup(hass, austria)
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry, options={CONF_FUELS: [FUEL_PELLETS, FUEL_GAS]}
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    mock_client.daily_oil_allowed.assert_not_awaited()
+    mock_client.daily_oil.assert_not_awaited()
+    registry = er.async_get(hass)
+    for entry in (austria, config_entry):
+        assert (
+            registry.async_get_entity_id(
+                "sensor", DOMAIN, f"{entry.entry_id}_heating_oil_daily_price"
+            )
+            is None
+        )
+
+
 async def test_diagnostics(
     hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
 ) -> None:
@@ -490,3 +652,6 @@ async def test_diagnostics(
     result = await async_get_config_entry_diagnostics(hass, config_entry)
     assert result["settings"]["country"] == "DE"
     assert result["fuels"][FUEL_OIL]["history_points"] == 53
+    # Diagnostics get shared, so TECSON's price stays out of them.
+    assert result["daily_oil_day"] == dt_util.now().date().isoformat()
+    assert "178.4" not in str(result)

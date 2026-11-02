@@ -10,11 +10,12 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 import voluptuous as vol
 
-from .const import CONF_COUNTRY, CONSUMPTION_UNITS, DOMAIN
+from .const import CONF_COUNTRY, CONSUMPTION_UNITS, DOMAIN, FUEL_OIL
 from .coordinator import HeatingPricesConfigEntry
 from .models import FuelPrice
+from .providers import tecson
 
-SENSOR_KEYS = ("price", "heat_price", "change", "rating")
+SENSOR_KEYS = ("price", "daily_price", "heat_price", "change", "rating")
 
 
 @callback
@@ -78,6 +79,12 @@ def _entry_payload(
         }
         purchase = coordinator.last_purchase(fuel)
         payload["last_purchase"] = purchase.as_dict() if purchase else None
+        if fuel == FUEL_OIL and (daily := coordinator.daily_oil) is not None:
+            payload["daily_price"] = {
+                **daily.as_dict(),
+                "source": tecson.SOURCE,
+                "source_url": tecson.URL,
+            }
         fuels[fuel] = payload
     costs = coordinator.annual_costs
     annual = None

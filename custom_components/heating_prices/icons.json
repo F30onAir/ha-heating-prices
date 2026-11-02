@@ -5,6 +5,7 @@
       "pellets_price": { "default": "mdi:grain" },
       "natural_gas_price": { "default": "mdi:fire" },
       "lpg_price": { "default": "mdi:gas-cylinder" },
+      "daily_price": { "default": "mdi:calendar-today" },
       "heat_price": { "default": "mdi:radiator" },
       "change": { "default": "mdi:trending-neutral" },
       "rating": {

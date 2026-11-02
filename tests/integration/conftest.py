@@ -6,6 +6,7 @@ from collections.abc import Generator
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
+from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -22,6 +23,7 @@ from custom_components.heating_prices.const import (
     FUEL_PELLETS,
 )
 from custom_components.heating_prices.providers import PriceSeries
+from custom_components.heating_prices.providers.tecson import DailyPrice
 
 
 def _weekly(values: list[float], end: date) -> list[tuple[date, float]]:
@@ -100,6 +102,11 @@ def natural_gas() -> PriceSeries:
     )
 
 
+def daily_oil() -> DailyPrice:
+    """An invented daily price from TECSON."""
+    return DailyPrice(day=dt_util.now().date(), price=178.4, quantity=3000)
+
+
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Load the integration from custom_components."""
@@ -122,6 +129,8 @@ def mock_client() -> Generator[AsyncMock]:
         client.bulletin_history.side_effect = bulletin_history
         client.pellets.return_value = pellets()
         client.natural_gas.return_value = natural_gas()
+        client.daily_oil_allowed.return_value = True
+        client.daily_oil.return_value = daily_oil()
         yield client
 
 

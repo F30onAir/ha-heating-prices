@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Heizpreise",
-        "description": "Die Preise stammen aus offenen Daten: EU Weekly Oil Bulletin (Heizöl und Flüssiggas, wöchentlich), Deutsches Pelletinstitut (Pellets, monatlich, nur Deutschland) und Eurostat (Erdgas).",
+        "description": "Die Preise stammen vom EU Weekly Oil Bulletin (Heizöl und Flüssiggas, wöchentlich), vom Deutschen Pelletinstitut (Pellets, monatlich, nur Deutschland) und von Eurostat (Erdgas). In Deutschland kommt mit Genehmigung von TECSON der Heizöl-Tagespreis dazu.",
         "data": {
           "country": "Land",
           "fuels": "Brennstoffe"
@@ -179,6 +179,7 @@
       "pellets_price": { "name": "Preis" },
       "natural_gas_price": { "name": "Preis" },
       "lpg_price": { "name": "Preis" },
+      "daily_price": { "name": "Tagespreis" },
       "heat_price": { "name": "Preis pro kWh Wärme" },
       "change": { "name": "Veränderung" },
       "rating": {

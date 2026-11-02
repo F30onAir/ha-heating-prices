@@ -25,12 +25,15 @@ from .const import (
     CONF_LAST_PURCHASES,
     CONSUMPTION_UNITS,
     DOMAIN,
+    FUEL_OIL,
     FUEL_UNITS,
     RATINGS,
     UNIT_HEAT,
+    UNIT_OIL,
 )
 from .coordinator import HeatingPricesConfigEntry, HeatingPricesCoordinator
 from .models import AnnualCosts, FuelPrice, PurchaseComparison
+from .providers import tecson
 from .websocket import cheapest_fuel
 
 PARALLEL_UPDATES = 0
@@ -153,6 +156,8 @@ async def async_setup_entry(
                 PurchaseSensor(coordinator, fuel, description)
                 for description in PURCHASE_DESCRIPTIONS
             )
+    if coordinator.has_daily_oil:
+        entities.append(DailyOilSensor(coordinator))
     if len(comparable) > 1:
         entities.append(CheapestFuelSensor(coordinator))
 
@@ -297,6 +302,48 @@ class FuelSensor(HeatingPricesEntity, SensorEntity):
                 (own_price - price.price) / price.price * 100, 1
             )
         return attributes
+
+
+class DailyOilSensor(HeatingPricesEntity, SensorEntity):
+    """TECSON's average heating oil price of the day in Germany."""
+
+    _attr_attribution = tecson.ATTRIBUTION
+    _attr_native_unit_of_measurement = UNIT_OIL
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+    _attr_translation_key = "daily_price"
+    _unrecorded_attributes = frozenset({"source", "source_url"})
+
+    def __init__(self, coordinator: HeatingPricesCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, FUEL_OIL)
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{FUEL_OIL}_daily_price"
+        )
+
+    @property
+    def available(self) -> bool:
+        """Available while there is a recent daily price."""
+        return super().available and self.coordinator.daily_oil is not None
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the price of the day."""
+        daily = self.coordinator.daily_oil
+        return daily.price if daily else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """The day and delivery the price refers to, and its source."""
+        daily = self.coordinator.daily_oil
+        if daily is None:
+            return None
+        return {
+            "period": daily.day.isoformat(),
+            "quantity_l": daily.quantity,
+            "source": tecson.SOURCE,
+            "source_url": tecson.URL,
+        }
 
 
 class CheapestFuelSensor(HeatingPricesEntity, SensorEntity):

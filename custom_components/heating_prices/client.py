@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 import json
 from typing import Any
 
@@ -9,8 +10,8 @@ from aiohttp import ClientError, ClientTimeout
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import USER_AGENT
-from .providers import ParseError, PriceSeries, depi, eurostat, oil_bulletin
+from .const import SOURCES_URL, USER_AGENT
+from .providers import ParseError, PriceSeries, depi, eurostat, oil_bulletin, tecson
 
 # Errors that mean "the source could not be read right now".
 SOURCE_ERRORS = (ClientError, TimeoutError, ParseError, ValueError)
@@ -50,6 +51,16 @@ class PriceClient:
     async def lpg_latest(self, country: str) -> PriceSeries:
         """Return this week's price of LPG as a motor fuel."""
         return await self._bulletin_latest(country, oil_bulletin.LPG)
+
+    async def daily_oil_allowed(self) -> bool:
+        """Check that the TECSON page may still be requested."""
+        sources = await self._get_json(SOURCES_URL)
+        return isinstance(sources, dict) and sources.get("tecson") is True
+
+    async def daily_oil(self, today: date) -> tecson.DailyPrice:
+        """Return TECSON's average heating oil price of the day in Germany."""
+        page = (await self._get(tecson.URL)).decode("utf-8", errors="replace")
+        return await self._hass.async_add_executor_job(tecson.parse, page, today)
 
     async def bulletin_history(
         self, country: str, products: list[str]

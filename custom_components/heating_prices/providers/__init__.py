@@ -1,7 +1,8 @@
 """Price data sources.
 
-Every module in this package only parses public, openly licensed data and has
-no Home Assistant imports, so it can be tested on its own.
+Every module in this package only parses data that may be reused, because it is
+openly licensed or its publisher allowed it, and has no Home Assistant imports, so
+it can be tested on its own.
 """
 
 from __future__ import annotations

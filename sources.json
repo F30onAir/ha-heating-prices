@@ -1,0 +1,4 @@
+{
+  "_comment": "Read by the integration before it requests the TECSON page. Set tecson to false to stop those requests in all installations, for example when TECSON asks for it.",
+  "tecson": true
+}

@@ -25,6 +25,8 @@ from .const import (
     CONF_LAST_PURCHASES,
     CONF_PELLET_QUANTITY,
     CONF_PELLET_REGION,
+    DAILY_OIL_COUNTRY,
+    DAILY_OIL_MAX_AGE,
     DEFAULT_GAS_BAND,
     DEFAULT_PELLET_QUANTITY,
     DOMAIN,
@@ -44,10 +46,12 @@ from .models import (
     annual_costs,
     purchase_comparison,
 )
+from .providers.tecson import DailyPrice
 
 _LOGGER = logging.getLogger(__name__)
 
 STORAGE_VERSION = 1
+_DAILY_OIL = "daily_oil"
 
 type HeatingPricesConfigEntry = ConfigEntry[HeatingPricesCoordinator]
 
@@ -125,6 +129,47 @@ class HeatingPricesCoordinator(DataUpdateCoordinator[dict[str, FuelPrice]]):
         if not purchase or price is None:
             return None
         return purchase_comparison(price, purchase)
+
+    @property
+    def has_daily_oil(self) -> bool:
+        """Whether TECSON's daily heating oil price applies to this entry."""
+        return self.country == DAILY_OIL_COUNTRY and FUEL_OIL in self.fuels
+
+    @property
+    def daily_oil(self) -> DailyPrice | None:
+        """TECSON's latest daily price, unless it is too old to be of use."""
+        stored = self._cache.get(_DAILY_OIL, {}).get("price")
+        if not stored or not self.has_daily_oil:
+            return None
+        daily = DailyPrice.from_dict(stored)
+        if dt_util.now().date() - daily.day > DAILY_OIL_MAX_AGE:
+            return None
+        return daily
+
+    async def _async_update_daily_oil(self) -> None:
+        """Read TECSON's daily price, no more often than TECSON was promised.
+
+        The request was allowed at one fetch per six hours per installation. The
+        time is stored so that restarts, reloads and failed attempts count as well.
+        """
+        if not self.has_daily_oil:
+            return
+        stored = self._cache.get(_DAILY_OIL, {})
+        now = dt_util.utcnow()
+        fetched = dt_util.parse_datetime(stored.get("fetched", ""))
+        if fetched is not None and now - fetched < UPDATE_INTERVAL:
+            return
+        self._cache[_DAILY_OIL] = {**stored, "fetched": now.isoformat()}
+        try:
+            if not await self.client.daily_oil_allowed():
+                # TECSON can ask for this to stop at any time, also for older versions.
+                self._cache[_DAILY_OIL].pop("price", None)
+                return
+            daily = await self.client.daily_oil(dt_util.now().date())
+        except SOURCE_ERRORS as err:
+            _LOGGER.warning("Could not update the TECSON price: %s", err)
+            return
+        self._cache[_DAILY_OIL]["price"] = daily.as_dict()
 
     def _signature(self, fuel: str) -> str:
         """Identify the settings a cached series belongs to."""
@@ -210,6 +255,7 @@ class HeatingPricesCoordinator(DataUpdateCoordinator[dict[str, FuelPrice]]):
                 translation_placeholders={"fuels": ", ".join(failed)},
             )
 
+        await self._async_update_daily_oil()
         self.last_fetched = dt_util.utcnow()
         await self._store.async_save(self._cache)
         bulletin = {fuel: data[fuel] for fuel in BULLETIN_FUELS if fuel in data}

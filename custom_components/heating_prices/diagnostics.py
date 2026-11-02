@@ -15,9 +15,12 @@ async def async_get_config_entry_diagnostics(
     """Return settings and a summary of the current prices."""
     coordinator = entry.runtime_data
     costs = coordinator.annual_costs
+    daily = coordinator.daily_oil
     return {
         "settings": coordinator.settings,
         "annual_costs": costs.as_dict() if costs else None,
+        # Diagnostics get shared, and TECSON's price must stay in the installation.
+        "daily_oil_day": daily.day.isoformat() if daily else None,
         "last_fetched": (
             coordinator.last_fetched.isoformat() if coordinator.last_fetched else None
         ),
