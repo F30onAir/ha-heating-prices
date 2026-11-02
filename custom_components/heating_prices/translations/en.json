@@ -75,6 +75,46 @@
         "data_description": {
           "annual_consumption": "Heating oil in litres, wood pellets in tonnes, natural gas in kWh."
         }
+      },
+      "purchases": {
+        "title": "Last purchase",
+        "description": "Enter what you last bought and what you paid in total, to compare it with today's price. Fill in all three values for a fuel or leave them empty.",
+        "sections": {
+          "heating_oil": {
+            "name": "Heating oil",
+            "data": {
+              "date": "Date",
+              "amount": "Amount",
+              "total_price": "Total price"
+            }
+          },
+          "pellets": {
+            "name": "Wood pellets",
+            "data": {
+              "date": "Date",
+              "amount": "Amount",
+              "total_price": "Total price"
+            }
+          },
+          "natural_gas": {
+            "name": "Natural gas",
+            "description": "Natural gas is not filled up, so use your last bill.",
+            "data": {
+              "date": "Date of the bill",
+              "amount": "Consumption",
+              "total_price": "Amount of the bill"
+            }
+          },
+          "lpg": {
+            "name": "LPG",
+            "description": "The official price is for motor fuel. Your price is therefore carried forward with its trend since the purchase, which makes today's cost an estimate.",
+            "data": {
+              "date": "Date",
+              "amount": "Amount",
+              "total_price": "Total price"
+            }
+          }
+        }
       }
     },
     "error": {
@@ -82,6 +122,8 @@
       "pellets_unavailable": "Wood pellet prices are only available for Germany.",
       "quantity_regional_only": "3 t prices are only published per region. Choose a region or 6 t / 26 t.",
       "current_fuel_required": "Choose the fuel your consumption refers to.",
+      "purchase_incomplete": "Enter date, amount and total price for a purchase, or leave all three empty.",
+      "purchase_in_future": "The date of a purchase cannot be in the future.",
       "oil_no_data": "The Oil Bulletin has no heating oil price for this country.",
       "oil_cannot_connect": "The EU Weekly Oil Bulletin could not be reached.",
       "lpg_no_data": "The Oil Bulletin has no LPG price for this country.",
@@ -157,7 +199,9 @@
       },
       "annual_cost": { "name": "Cost per year" },
       "current_annual_cost": { "name": "My cost per year" },
-      "potential_savings": { "name": "Potential savings per year" }
+      "potential_savings": { "name": "Potential savings per year" },
+      "purchase_difference": { "name": "Difference to last purchase" },
+      "purchase_change": { "name": "Change since last purchase" }
     }
   },
   "exceptions": {

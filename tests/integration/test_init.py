@@ -17,7 +17,11 @@ from custom_components.heating_prices.const import (
     CONF_ANNUAL_CONSUMPTION,
     CONF_CURRENT_FUEL,
     CONF_FUELS,
+    CONF_LAST_PURCHASES,
     CONF_OWN_GAS_PRICE,
+    CONF_PURCHASE_AMOUNT,
+    CONF_PURCHASE_DATE,
+    CONF_PURCHASE_TOTAL,
     DOMAIN,
     FUEL_GAS,
     FUEL_LPG,
@@ -379,6 +383,103 @@ async def test_no_cost_sensors_without_consumption(
         )
         is None
     )
+
+
+async def test_last_purchase(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    mock_client: AsyncMock,
+    config_entry: MockConfigEntry,
+) -> None:
+    """3,000 L bought for 3,600 € are compared with today's 175.01 €/100 L."""
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={
+            CONF_LAST_PURCHASES: {
+                FUEL_OIL: {
+                    CONF_PURCHASE_DATE: "2026-03-16",
+                    CONF_PURCHASE_AMOUNT: 3000,
+                    CONF_PURCHASE_TOTAL: 3600,
+                }
+            }
+        },
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    difference = hass.states.get(
+        entity_id(hass, config_entry, "heating_oil_purchase_difference")
+    )
+    assert difference is not None
+    assert float(difference.state) == 1650
+    assert difference.attributes["unit_of_measurement"] == "EUR"
+    assert difference.attributes["paid_price"] == 120.0
+    assert difference.attributes["cost_now"] == 5250
+    assert difference.attributes["market_price_then"] == 140.0
+
+    change = hass.states.get(
+        entity_id(hass, config_entry, "heating_oil_purchase_change")
+    )
+    assert change is not None and float(change.state) == 45.8
+
+    # Only fuels with a purchase get these sensors.
+    assert (
+        er.async_get(hass).async_get_entity_id(
+            "sensor", DOMAIN, f"{config_entry.entry_id}_pellets_purchase_difference"
+        )
+        is None
+    )
+
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": f"{DOMAIN}/data"})
+    response: dict[str, Any] = await client.receive_json()
+    fuels = response["result"]["entries"][0]["fuels"]
+    assert fuels[FUEL_OIL]["last_purchase"]["cost_now"] == 5250
+    assert fuels[FUEL_OIL]["last_purchase"]["date"] == "2026-03-16"
+    assert fuels[FUEL_PELLETS]["last_purchase"] is None
+
+    # Removing the purchase removes its sensors.
+    hass.config_entries.async_update_entry(config_entry, options={})
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert (
+        er.async_get(hass).async_get_entity_id(
+            "sensor", DOMAIN, f"{config_entry.entry_id}_heating_oil_purchase_difference"
+        )
+        is None
+    )
+
+
+async def test_last_purchase_of_lpg(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """Heating gas follows the trend of the motor fuel price since the purchase."""
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={
+            CONF_FUELS: [FUEL_OIL, FUEL_LPG],
+            CONF_LAST_PURCHASES: {
+                FUEL_LPG: {
+                    CONF_PURCHASE_DATE: "2026-03-16",
+                    CONF_PURCHASE_AMOUNT: 2000,
+                    CONF_PURCHASE_TOTAL: 1300,
+                }
+            },
+        },
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    # 95.00 €/100 L at the time of the purchase, 113.02 €/100 L today.
+    difference = hass.states.get(
+        entity_id(hass, config_entry, "lpg_purchase_difference")
+    )
+    assert difference is not None
+    assert float(difference.state) == 247
+    assert difference.attributes["estimated"] is True
+    assert difference.attributes["paid_price"] == 65.0
+    assert difference.attributes["cost_now"] == 1547
 
 
 async def test_diagnostics(

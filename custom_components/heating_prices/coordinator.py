@@ -22,6 +22,7 @@ from .const import (
     CONF_CURRENT_FUEL,
     CONF_FUELS,
     CONF_GAS_BAND,
+    CONF_LAST_PURCHASES,
     CONF_PELLET_QUANTITY,
     CONF_PELLET_REGION,
     DEFAULT_GAS_BAND,
@@ -36,7 +37,13 @@ from .const import (
     PELLET_REGION_NATIONAL,
     UPDATE_INTERVAL,
 )
-from .models import AnnualCosts, FuelPrice, annual_costs
+from .models import (
+    AnnualCosts,
+    FuelPrice,
+    PurchaseComparison,
+    annual_costs,
+    purchase_comparison,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,6 +117,14 @@ class HeatingPricesCoordinator(DataUpdateCoordinator[dict[str, FuelPrice]]):
         if not fuel or not consumption or not self.data:
             return None
         return annual_costs(fuel, float(consumption), self.data, self.own_price(fuel))
+
+    def last_purchase(self, fuel: str) -> PurchaseComparison | None:
+        """The last purchase of a fuel against today's price, if the user entered it."""
+        purchase = self.settings.get(CONF_LAST_PURCHASES, {}).get(fuel)
+        price = (self.data or {}).get(fuel)
+        if not purchase or price is None:
+            return None
+        return purchase_comparison(price, purchase)
 
     def _signature(self, fuel: str) -> str:
         """Identify the settings a cached series belongs to."""

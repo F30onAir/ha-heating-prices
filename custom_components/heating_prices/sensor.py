@@ -22,6 +22,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     COMPARABLE_FUELS,
+    CONF_LAST_PURCHASES,
     CONSUMPTION_UNITS,
     DOMAIN,
     FUEL_UNITS,
@@ -29,7 +30,7 @@ from .const import (
     UNIT_HEAT,
 )
 from .coordinator import HeatingPricesConfigEntry, HeatingPricesCoordinator
-from .models import AnnualCosts, FuelPrice
+from .models import AnnualCosts, FuelPrice, PurchaseComparison
 from .websocket import cheapest_fuel
 
 PARALLEL_UPDATES = 0
@@ -96,6 +97,33 @@ COMPARISON_COST_DESCRIPTIONS: tuple[CostSensorDescription, ...] = (
 )
 
 
+@dataclass(frozen=True, kw_only=True)
+class PurchaseSensorDescription(SensorEntityDescription):
+    """Describes a sensor that compares the last purchase with today's price."""
+
+    value_fn: Callable[[PurchaseComparison], float]
+
+
+PURCHASE_DESCRIPTIONS: tuple[PurchaseSensorDescription, ...] = (
+    PurchaseSensorDescription(
+        key="purchase_difference",
+        translation_key="purchase_difference",
+        device_class=SensorDeviceClass.MONETARY,
+        native_unit_of_measurement="EUR",
+        suggested_display_precision=0,
+        value_fn=lambda purchase: purchase.difference,
+    ),
+    PurchaseSensorDescription(
+        key="purchase_change",
+        translation_key="purchase_change",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda purchase: purchase.change_pct,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: HeatingPricesConfigEntry,
@@ -120,6 +148,11 @@ async def async_setup_entry(
                 else description
             )
             entities.append(FuelSensor(coordinator, fuel, fuel_description))
+        if fuel in coordinator.settings.get(CONF_LAST_PURCHASES, {}):
+            entities.extend(
+                PurchaseSensor(coordinator, fuel, description)
+                for description in PURCHASE_DESCRIPTIONS
+            )
     if len(comparable) > 1:
         entities.append(CheapestFuelSensor(coordinator))
 
@@ -338,3 +371,40 @@ class CostSensor(HeatingPricesEntity, SensorEntity):
             "heat_demand_kwh": round(costs.heat_kwh),
             "cheapest_fuel": costs.cheapest,
         }
+
+
+class PurchaseSensor(HeatingPricesEntity, SensorEntity):
+    """How today's price compares with the last purchase of a fuel."""
+
+    entity_description: PurchaseSensorDescription
+
+    def __init__(
+        self,
+        coordinator: HeatingPricesCoordinator,
+        fuel: str,
+        description: PurchaseSensorDescription,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, fuel)
+        self.fuel = fuel
+        self.entity_description = description
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{fuel}_{description.key}"
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the state."""
+        purchase = self.coordinator.last_purchase(self.fuel)
+        return self.entity_description.value_fn(purchase) if purchase else None
+
+    @property
+    def available(self) -> bool:
+        """Available while the purchase can be compared."""
+        return super().available and self.native_value is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """The purchase and what the same amount costs today."""
+        purchase = self.coordinator.last_purchase(self.fuel)
+        return purchase.as_dict() if purchase else None

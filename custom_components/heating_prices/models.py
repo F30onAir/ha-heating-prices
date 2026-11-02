@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from statistics import fmean
@@ -10,12 +10,17 @@ from typing import Any
 
 from .const import (
     COMPARABLE_FUELS,
+    CONF_PURCHASE_AMOUNT,
+    CONF_PURCHASE_DATE,
+    CONF_PURCHASE_TOTAL,
+    CONSUMPTION_UNITS,
     FUEL_GAS,
     FUEL_OIL,
     FUEL_PELLETS,
     FUEL_UNITS,
     OIL_KWH_PER_LITRE,
     PELLETS_KWH_PER_KG,
+    PRICE_FACTORS,
     RATING_HIGH,
     RATING_LOW,
     RATING_NORMAL,
@@ -124,6 +129,74 @@ def annual_costs(
 
 
 @dataclass(slots=True)
+class PurchaseComparison:
+    """The last purchase of a fuel compared with today's price."""
+
+    purchased: date
+    amount: float
+    amount_unit: str
+    total: float
+    # What was paid, in the unit of the fuel's price.
+    paid_price: float
+    # Official price at the time of the purchase, if the history reaches that far.
+    market_price_then: float | None
+    # € the same amount costs today.
+    cost_now: int
+    difference: int
+    change_pct: float
+    # True if the paid price only follows the market instead of being compared
+    # with today's price directly.
+    estimated: bool
+
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize for the websocket API and sensor attributes."""
+        return {
+            "date": self.purchased.isoformat(),
+            "amount": self.amount,
+            "amount_unit": self.amount_unit,
+            "total": self.total,
+            "paid_price": self.paid_price,
+            "market_price_then": self.market_price_then,
+            "cost_now": self.cost_now,
+            "difference": self.difference,
+            "change_pct": self.change_pct,
+            "estimated": self.estimated,
+        }
+
+
+def purchase_comparison(
+    price: FuelPrice, purchase: dict[str, Any]
+) -> PurchaseComparison | None:
+    """Compare a purchase entered by the user with today's price."""
+    purchased = date.fromisoformat(purchase[CONF_PURCHASE_DATE])
+    amount = float(purchase[CONF_PURCHASE_AMOUNT])
+    total = float(purchase[CONF_PURCHASE_TOTAL])
+    factor = PRICE_FACTORS[price.fuel]
+    market_then = price.price_on(purchased)
+    estimated = price.fuel not in COMPARABLE_FUELS
+    if estimated:
+        # LPG for heating is taxed differently from the official motor fuel price,
+        # so only the market trend since the purchase says anything about it.
+        if not market_then:
+            return None
+        cost_now = total * price.price / market_then
+    else:
+        cost_now = amount * price.price / factor
+    return PurchaseComparison(
+        purchased=purchased,
+        amount=amount,
+        amount_unit=CONSUMPTION_UNITS[price.fuel],
+        total=total,
+        paid_price=round(total / amount * factor, 2),
+        market_price_then=market_then,
+        cost_now=round(cost_now),
+        difference=round(cost_now - total),
+        change_pct=round((cost_now - total) / total * 100, 1),
+        estimated=estimated,
+    )
+
+
+@dataclass(slots=True)
 class FuelPrice:
     """Current price of one fuel with its history."""
 
@@ -183,6 +256,11 @@ class FuelPrice:
         if self.fuel not in COMPARABLE_FUELS:
             return None
         return heat_price(self.fuel, self.price)
+
+    def price_on(self, day: date) -> float | None:
+        """Price that applied on a day, if the history reaches back that far."""
+        index = bisect_right([point[0] for point in self.history], day)
+        return self.history[index - 1][1] if index else None
 
     def last_year(self) -> list[float]:
         """Prices of the twelve months up to the current period."""

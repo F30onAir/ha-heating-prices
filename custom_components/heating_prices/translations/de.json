@@ -75,6 +75,46 @@
         "data_description": {
           "annual_consumption": "Heizöl in Litern, Pellets in Tonnen, Erdgas in kWh."
         }
+      },
+      "purchases": {
+        "title": "Letzter Kauf",
+        "description": "Trage ein, was du zuletzt gekauft und insgesamt bezahlt hast, um es mit dem heutigen Preis zu vergleichen. Fülle für einen Brennstoff alle drei Werte aus oder lass sie leer.",
+        "sections": {
+          "heating_oil": {
+            "name": "Heizöl",
+            "data": {
+              "date": "Datum",
+              "amount": "Menge",
+              "total_price": "Gesamtpreis"
+            }
+          },
+          "pellets": {
+            "name": "Holzpellets",
+            "data": {
+              "date": "Datum",
+              "amount": "Menge",
+              "total_price": "Gesamtpreis"
+            }
+          },
+          "natural_gas": {
+            "name": "Erdgas",
+            "description": "Erdgas wird nicht befüllt, nimm deshalb deine letzte Abrechnung.",
+            "data": {
+              "date": "Datum der Abrechnung",
+              "amount": "Verbrauch",
+              "total_price": "Rechnungsbetrag"
+            }
+          },
+          "lpg": {
+            "name": "Flüssiggas",
+            "description": "Der amtliche Preis gilt für Autogas. Dein Preis wird deshalb mit dessen Entwicklung seit dem Kauf fortgeschrieben, die heutigen Kosten sind also eine Schätzung.",
+            "data": {
+              "date": "Datum",
+              "amount": "Menge",
+              "total_price": "Gesamtpreis"
+            }
+          }
+        }
       }
     },
     "error": {
@@ -82,6 +122,8 @@
       "pellets_unavailable": "Pelletpreise gibt es nur für Deutschland.",
       "quantity_regional_only": "Preise für 3 t werden nur je Region veröffentlicht. Wähle eine Region oder 6 t bzw. 26 t.",
       "current_fuel_required": "Wähle den Brennstoff, auf den sich dein Verbrauch bezieht.",
+      "purchase_incomplete": "Trage für einen Kauf Datum, Menge und Gesamtpreis ein oder lass alle drei leer.",
+      "purchase_in_future": "Das Datum eines Kaufs darf nicht in der Zukunft liegen.",
       "oil_no_data": "Das Oil Bulletin enthält für dieses Land keinen Heizölpreis.",
       "oil_cannot_connect": "Das EU Weekly Oil Bulletin ist nicht erreichbar.",
       "lpg_no_data": "Das Oil Bulletin enthält für dieses Land keinen Flüssiggaspreis.",
@@ -157,7 +199,9 @@
       },
       "annual_cost": { "name": "Kosten pro Jahr" },
       "current_annual_cost": { "name": "Meine Kosten pro Jahr" },
-      "potential_savings": { "name": "Mögliche Ersparnis pro Jahr" }
+      "potential_savings": { "name": "Mögliche Ersparnis pro Jahr" },
+      "purchase_difference": { "name": "Differenz zum letzten Kauf" },
+      "purchase_change": { "name": "Veränderung seit letztem Kauf" }
     }
   },
   "exceptions": {

@@ -6,7 +6,13 @@ from datetime import date, timedelta
 
 import pytest
 
-from heating_prices.models import FuelPrice, annual_costs, heat_demand_kwh, heat_price
+from heating_prices.models import (
+    FuelPrice,
+    annual_costs,
+    heat_demand_kwh,
+    heat_price,
+    purchase_comparison,
+)
 
 
 def weekly(
@@ -152,6 +158,91 @@ def test_annual_costs_leave_out_lpg() -> None:
     assert costs is not None
     assert "lpg" not in costs.costs
     assert costs.cheapest == "pellets"
+
+
+def test_price_on() -> None:
+    """A day gets the last price published up to then."""
+    price = oil([100.0, 110.0, 120.0])  # 12, 19 and 26 October
+    assert price.price_on(date(2026, 10, 12)) == 100.0
+    assert price.price_on(date(2026, 10, 18)) == 100.0
+    assert price.price_on(date(2026, 11, 1)) == 120.0
+    assert price.price_on(date(2026, 10, 11)) is None
+
+
+def _purchase(day: str, amount: float, total: float) -> dict[str, str | float]:
+    return {"date": day, "amount": amount, "total_price": total}
+
+
+def test_purchase_against_todays_price() -> None:
+    """3,000 L for 3,600 € cost 5,250 € at today's 175.01 €/100 L."""
+    comparison = purchase_comparison(
+        oil([140.0, 175.01]), _purchase("2026-10-20", 3000, 3600)
+    )
+    assert comparison is not None
+    assert comparison.paid_price == 120.0
+    assert comparison.market_price_then == 140.0
+    assert comparison.amount_unit == "L"
+    assert comparison.cost_now == 5250
+    assert comparison.difference == 1650
+    assert comparison.change_pct == 45.8
+    assert comparison.estimated is False
+
+
+def test_purchase_more_expensive_than_today() -> None:
+    """A price that fell since the purchase gives a negative difference."""
+    comparison = purchase_comparison(
+        oil([175.0]), _purchase("2026-10-26", 3000, 6000)
+    )
+    assert comparison is not None
+    assert comparison.paid_price == 200.0
+    assert comparison.difference == -750
+    assert comparison.change_pct == -12.5
+
+
+@pytest.mark.parametrize(
+    ("fuel", "value", "amount", "total", "paid", "cost_now", "unit"),
+    [
+        ("pellets", 450.0, 6, 2400, 400.0, 2700, "t"),
+        ("natural_gas", 11.5, 20000, 2000, 10.0, 2300, "kWh"),
+    ],
+)
+def test_purchase_units(
+    fuel: str,
+    value: float,
+    amount: float,
+    total: float,
+    paid: float,
+    cost_now: int,
+    unit: str,
+) -> None:
+    """Paid prices use the fuel's price unit: €/t for pellets, ct/kWh for gas."""
+    comparison = purchase_comparison(
+        _price(fuel, value), _purchase("2026-10-01", amount, total)
+    )
+    assert comparison is not None
+    assert comparison.paid_price == paid
+    assert comparison.cost_now == cost_now
+    assert comparison.amount_unit == unit
+
+
+def test_purchase_of_lpg_follows_the_market() -> None:
+    """Heating gas is not compared with the motor fuel price directly."""
+    price = oil([95.0, 113.02])
+    price.fuel = "lpg"
+    comparison = purchase_comparison(price, _purchase("2026-10-19", 2000, 1300))
+    assert comparison is not None
+    assert comparison.paid_price == 65.0
+    assert comparison.market_price_then == 95.0
+    assert comparison.cost_now == 1547
+    assert comparison.difference == 247
+    assert comparison.change_pct == 19.0
+    assert comparison.estimated is True
+
+
+def test_purchase_of_lpg_before_the_history() -> None:
+    """Without the price at the time of purchase there is no trend to apply."""
+    price = _price("lpg", 113.0)
+    assert purchase_comparison(price, _purchase("2026-09-30", 2000, 1300)) is None
 
 
 def test_round_trip() -> None:

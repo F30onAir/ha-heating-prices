@@ -76,6 +76,8 @@ def _entry_payload(
             )
             for key in SENSOR_KEYS
         }
+        purchase = coordinator.last_purchase(fuel)
+        payload["last_purchase"] = purchase.as_dict() if purchase else None
         fuels[fuel] = payload
     costs = coordinator.annual_costs
     annual = None

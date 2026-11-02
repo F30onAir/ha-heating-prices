@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import (
     CountrySelector,
     CountrySelectorConfig,
+    DateSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -16,6 +19,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
     SelectSelectorMode,
 )
+from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
 from .client import SOURCE_ERRORS, PriceClient
@@ -26,8 +30,13 @@ from .const import (
     CONF_CURRENT_FUEL,
     CONF_FUELS,
     CONF_GAS_BAND,
+    CONF_LAST_PURCHASES,
     CONF_PELLET_QUANTITY,
     CONF_PELLET_REGION,
+    CONF_PURCHASE_AMOUNT,
+    CONF_PURCHASE_DATE,
+    CONF_PURCHASE_TOTAL,
+    CONSUMPTION_UNITS,
     DEFAULT_GAS_BAND,
     DEFAULT_PELLET_QUANTITY,
     DOMAIN,
@@ -110,6 +119,49 @@ def _pellet_errors(user_input: dict[str, Any]) -> dict[str, str]:
         and user_input[CONF_PELLET_QUANTITY] not in PELLET_NATIONAL_QUANTITIES
     ):
         return {CONF_PELLET_QUANTITY: "quantity_regional_only"}
+    return {}
+
+
+def _purchase_section(fuel: str, collapsed: bool) -> section:
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(CONF_PURCHASE_DATE): DateSelector(),
+                vol.Optional(CONF_PURCHASE_AMOUNT): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=1_000_000,
+                        step="any",
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement=CONSUMPTION_UNITS[fuel],
+                    )
+                ),
+                vol.Optional(CONF_PURCHASE_TOTAL): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=1_000_000,
+                        step=0.01,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="€",
+                    )
+                ),
+            }
+        ),
+        {"collapsed": collapsed},
+    )
+
+
+def _purchase_errors(user_input: dict[str, Any]) -> dict[str, str]:
+    for purchase in user_input.values():
+        if not purchase:
+            continue
+        if not all(
+            purchase.get(key)
+            for key in (CONF_PURCHASE_DATE, CONF_PURCHASE_AMOUNT, CONF_PURCHASE_TOTAL)
+        ):
+            return {"base": "purchase_incomplete"}
+        if date.fromisoformat(purchase[CONF_PURCHASE_DATE]) > dt_util.now().date():
+            return {"base": "purchase_in_future"}
     return {}
 
 
@@ -260,11 +312,12 @@ class HeatingPricesConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class HeatingPricesOptionsFlow(OptionsFlow):
-    """Change fuels, own prices, pellet region, gas band and the cost calculator."""
+    """Change fuels, own prices, the cost calculator and the last purchases."""
 
     def __init__(self) -> None:
         """Initialize the flow."""
         self._fuels: list[str] = []
+        self._options: dict[str, Any] = {}
 
     @property
     def _settings(self) -> dict[str, Any]:
@@ -323,8 +376,9 @@ class HeatingPricesOptionsFlow(OptionsFlow):
         fuels = self._fuels
         comparable = [fuel for fuel in COMPARABLE_FUELS if fuel in fuels]
         if not comparable:
-            # LPG alone has nothing to set.
-            return self.async_create_entry(data={CONF_FUELS: fuels})
+            # LPG alone has nothing to set here.
+            self._options = {CONF_FUELS: fuels}
+            return await self.async_step_purchases()
 
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -337,7 +391,8 @@ class HeatingPricesOptionsFlow(OptionsFlow):
             if not errors:
                 errors = await self._new_fuel_errors(user_input)
             if not errors:
-                return self.async_create_entry(data={CONF_FUELS: fuels, **user_input})
+                self._options = {CONF_FUELS: fuels, **user_input}
+                return await self.async_step_purchases()
 
         fields: dict[Any, Any] = {}
         for fuel, key in OWN_PRICE_KEYS.items():
@@ -383,5 +438,33 @@ class HeatingPricesOptionsFlow(OptionsFlow):
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(fields), suggested
             ),
+            errors=errors,
+        )
+
+    async def async_step_purchases(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Enter the last purchase of the chosen fuels."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _purchase_errors(user_input)
+            if not errors:
+                purchases = {
+                    fuel: purchase for fuel, purchase in user_input.items() if purchase
+                }
+                return self.async_create_entry(
+                    data={**self._options, CONF_LAST_PURCHASES: purchases}
+                )
+
+        suggested = user_input or self._settings.get(CONF_LAST_PURCHASES, {})
+        schema = vol.Schema(
+            {
+                vol.Required(fuel): _purchase_section(fuel, not suggested.get(fuel))
+                for fuel in self._fuels
+            }
+        )
+        return self.async_show_form(
+            step_id="purchases",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
             errors=errors,
         )

@@ -18,6 +18,8 @@
       "annual_cost": { "default": "mdi:cash" },
       "current_annual_cost": { "default": "mdi:home-thermometer-outline" },
       "potential_savings": { "default": "mdi:piggy-bank-outline" },
+      "purchase_difference": { "default": "mdi:cash-sync" },
+      "purchase_change": { "default": "mdi:percent-outline" },
       "cheapest_fuel": {
         "default": "mdi:trophy-outline",
         "state": {

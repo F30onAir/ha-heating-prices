@@ -44,6 +44,15 @@ const I18N = {
     own_price: "Dein Preis",
     below: "unter Markt",
     above: "über Markt",
+    last_purchase: "Letzter Kauf",
+    bought_for: (amount, total) => `${amount} für ${total} €`,
+    price_then: "Preis damals",
+    today_market: "Heute zum Marktpreis",
+    today_estimated: "Heute etwa",
+    more_expensive: (amount) => `${amount} € teurer`,
+    cheaper: (amount) => `${amount} € günstiger`,
+    unchanged: "unverändert",
+    purchase_estimated_hint: "Dein Preis, fortgeschrieben mit dem Autogas-Preis seit dem Kauf.",
     sources: "Quellen",
     no_entry: "Die Integration Heizpreise ist noch nicht eingerichtet.",
     error: "Preise konnten nicht geladen werden",
@@ -84,6 +93,15 @@ const I18N = {
     own_price: "Your price",
     below: "below market",
     above: "above market",
+    last_purchase: "Last purchase",
+    bought_for: (amount, total) => `${amount} for ${total} €`,
+    price_then: "Price then",
+    today_market: "Today at market price",
+    today_estimated: "Today about",
+    more_expensive: (amount) => `${amount} € more`,
+    cheaper: (amount) => `${amount} € less`,
+    unchanged: "unchanged",
+    purchase_estimated_hint: "Your price, carried forward with the motor fuel price since the purchase.",
     sources: "Sources",
     no_entry: "The Heating Prices integration is not set up yet.",
     error: "Prices could not be loaded",
@@ -301,6 +319,31 @@ class HeatingPricesCard extends HTMLElement {
           <span>${esc(t.max)} <b>${number(hass, info.max_12m)}</b></span>
         </div>
         ${own}
+        ${this._purchase(info, t)}
+      </div>`;
+  }
+
+  _purchase(info, t) {
+    const purchase = info.last_purchase;
+    if (!purchase) return "";
+    const hass = this._hass;
+    const day = new Intl.DateTimeFormat(lang(hass), { day: "2-digit", month: "2-digit", year: "numeric" }).format(parseDate(purchase.date));
+    const amount = `${number(hass, purchase.amount, purchase.amount_unit === "t" ? 1 : 0)} ${purchase.amount_unit}`;
+    const total = number(hass, purchase.total, Number.isInteger(purchase.total) ? 0 : 2);
+    const { difference, change_pct: change } = purchase;
+    const cls = difference > 0 ? "bad" : difference < 0 ? "good" : "";
+    const arrow = change > 0 ? "▲" : change < 0 ? "▼" : "▬";
+    const verdict = difference > 0
+      ? t.more_expensive(number(hass, difference, 0))
+      : difference < 0 ? t.cheaper(number(hass, -difference, 0)) : t.unchanged;
+    return `
+      <div class="purchase">
+        <div class="purchase-title">${esc(t.last_purchase)} · ${esc(day)}</div>
+        <div class="purchase-row">${esc(t.bought_for(amount, total))}</div>
+        <div class="purchase-row"><span>${esc(t.price_then)}</span><b>${number(hass, purchase.paid_price)} ${esc(info.unit)}</b></div>
+        <div class="purchase-row"><span>${esc(purchase.estimated ? t.today_estimated : t.today_market)}</span><b>${number(hass, purchase.cost_now, 0)} €</b></div>
+        <div class="purchase-row ${cls}"><span>${arrow} ${number(hass, Math.abs(change), 1)} %</span><span>${esc(verdict)}</span></div>
+        ${purchase.estimated ? `<div class="purchase-hint">${esc(t.purchase_estimated_hint)}</div>` : ""}
       </div>`;
   }
 
@@ -461,6 +504,13 @@ const STYLES = `
   .own b { color: var(--primary-text-color); }
   .own .good { color: var(--success-color, #2e7d32); font-weight: 600; }
   .own .bad { color: var(--error-color, #c62828); font-weight: 600; }
+  .purchase { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--divider-color, rgba(127,127,127,.2)); font-size: 0.8rem; color: var(--secondary-text-color); }
+  .purchase-title { font-weight: 600; margin-bottom: 4px; }
+  .purchase-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; padding: 1px 0; }
+  .purchase-row b { color: var(--primary-text-color); font-variant-numeric: tabular-nums; }
+  .purchase-row.good { color: var(--success-color, #2e7d32); font-weight: 600; }
+  .purchase-row.bad { color: var(--error-color, #c62828); font-weight: 600; }
+  .purchase-hint { margin-top: 4px; font-size: 0.72rem; }
   .compare { margin-top: 16px; padding: 14px; border-radius: 14px; background: var(--secondary-background-color, rgba(127,127,127,.08)); }
   .section-title { font-size: 0.85rem; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
   .bar-row { display: grid; grid-template-columns: 120px 1fr 5.2em 22px; align-items: center; gap: 10px; padding: 4px 0; }

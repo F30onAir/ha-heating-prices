@@ -25,6 +25,10 @@ CONF_OWN_PELLET_PRICE: Final = "own_pellet_price"
 CONF_OWN_GAS_PRICE: Final = "own_gas_price"
 CONF_CURRENT_FUEL: Final = "current_fuel"
 CONF_ANNUAL_CONSUMPTION: Final = "annual_consumption"
+CONF_LAST_PURCHASES: Final = "last_purchases"
+CONF_PURCHASE_DATE: Final = "date"
+CONF_PURCHASE_AMOUNT: Final = "amount"
+CONF_PURCHASE_TOTAL: Final = "total_price"
 
 FUEL_OIL: Final = "heating_oil"
 FUEL_PELLETS: Final = "pellets"
@@ -56,11 +60,20 @@ FUEL_UNITS: Final = {
     FUEL_LPG: UNIT_LPG,
 }
 
-# Units of the annual consumption a user enters for the fuel they heat with.
+# Units of the amounts a user enters: yearly consumption and last purchase.
 CONSUMPTION_UNITS: Final = {
     FUEL_OIL: "L",
     FUEL_PELLETS: "t",
     FUEL_GAS: "kWh",
+    FUEL_LPG: "L",
+}
+
+# From € per amount above to the fuel's price unit, e.g. €/L to €/100 L.
+PRICE_FACTORS: Final = {
+    FUEL_OIL: 100,
+    FUEL_PELLETS: 1,
+    FUEL_GAS: 100,
+    FUEL_LPG: 100,
 }
 
 FUEL_ICONS: Final = {

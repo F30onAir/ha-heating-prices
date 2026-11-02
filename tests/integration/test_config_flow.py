@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock
 
 from aiohttp import ClientError
@@ -17,9 +18,13 @@ from custom_components.heating_prices.const import (
     CONF_CURRENT_FUEL,
     CONF_FUELS,
     CONF_GAS_BAND,
+    CONF_LAST_PURCHASES,
     CONF_OWN_GAS_PRICE,
     CONF_PELLET_QUANTITY,
     CONF_PELLET_REGION,
+    CONF_PURCHASE_AMOUNT,
+    CONF_PURCHASE_DATE,
+    CONF_PURCHASE_TOTAL,
     DOMAIN,
     FUEL_GAS,
     FUEL_LPG,
@@ -27,6 +32,8 @@ from custom_components.heating_prices.const import (
     FUEL_PELLETS,
 )
 from custom_components.heating_prices.providers import ParseError
+
+NO_PURCHASES = {FUEL_OIL: {}, FUEL_PELLETS: {}, FUEL_GAS: {}}
 
 
 async def test_full_flow(hass: HomeAssistant, mock_client: AsyncMock) -> None:
@@ -216,6 +223,11 @@ async def test_options(
             CONF_GAS_BAND: "d2",
         },
     )
+    assert result["step_id"] == "purchases"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], NO_PURCHASES
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert config_entry.options[CONF_OWN_GAS_PRICE] == 10.5
@@ -247,6 +259,9 @@ async def test_options_consumption_needs_fuel(
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {**base, CONF_ANNUAL_CONSUMPTION: 2500, CONF_CURRENT_FUEL: FUEL_OIL},
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], NO_PURCHASES
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
@@ -286,6 +301,10 @@ async def test_options_add_lpg(
             CONF_GAS_BAND: "d2",
         },
     )
+    assert result["step_id"] == "purchases"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**NO_PURCHASES, FUEL_LPG: {}}
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert config_entry.options[CONF_FUELS] == fuels
@@ -310,7 +329,7 @@ async def test_options_no_fuels(
 async def test_options_lpg_only_has_no_settings(
     hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
 ) -> None:
-    """With LPG alone there is nothing else to set, so the flow ends right away."""
+    """With LPG alone only the last purchase is left to enter."""
     config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -319,9 +338,75 @@ async def test_options_lpg_only_has_no_settings(
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {CONF_FUELS: [FUEL_LPG]}
     )
+    assert result["step_id"] == "purchases"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {FUEL_LPG: {}}
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_FUELS: [FUEL_LPG]}
+    assert result["data"] == {CONF_FUELS: [FUEL_LPG], CONF_LAST_PURCHASES: {}}
     await hass.async_block_till_done()
+
+
+async def test_options_last_purchase(
+    hass: HomeAssistant, mock_client: AsyncMock, config_entry: MockConfigEntry
+) -> None:
+    """A purchase is checked, stored, offered again and can be removed."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    fuels = [FUEL_OIL, FUEL_LPG]
+    purchase = {
+        CONF_PURCHASE_DATE: "2026-03-16",
+        CONF_PURCHASE_AMOUNT: 3000,
+        CONF_PURCHASE_TOTAL: 3600,
+    }
+
+    async def open_purchases() -> dict[str, Any]:
+        result = await hass.config_entries.options.async_init(config_entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_FUELS: fuels}
+        )
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {}
+        )
+        assert result["step_id"] == "purchases"
+        return result
+
+    result = await open_purchases()
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {FUEL_OIL: {CONF_PURCHASE_AMOUNT: 3000}, FUEL_LPG: {}}
+    )
+    assert result["errors"] == {"base": "purchase_incomplete"}
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {FUEL_OIL: {**purchase, CONF_PURCHASE_DATE: "2999-01-01"}, FUEL_LPG: {}},
+    )
+    assert result["errors"] == {"base": "purchase_in_future"}
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {FUEL_OIL: purchase, FUEL_LPG: {}}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert config_entry.options[CONF_LAST_PURCHASES] == {FUEL_OIL: purchase}
+
+    result = await open_purchases()
+    schema = result["data_schema"].schema
+    assert schema[FUEL_OIL].options["collapsed"] is False
+    assert schema[FUEL_LPG].options["collapsed"] is True
+    suggested = {
+        str(key): key.description["suggested_value"]
+        for key in schema[FUEL_OIL].schema.schema
+    }
+    assert suggested == purchase
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {FUEL_OIL: {}, FUEL_LPG: {}}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert config_entry.options[CONF_LAST_PURCHASES] == {}
 
 
 async def test_options_new_gas_is_checked(

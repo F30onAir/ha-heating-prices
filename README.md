@@ -28,6 +28,8 @@ Händlerseiten und es wird kein API-Schlüssel gebraucht.
 - **Eigener Preis** – trage ein, was du zahlst, und sieh die Abweichung zum Markt
 - **Heizkosten-Rechner** – mit deinem Jahresverbrauch die Kosten pro Jahr für jeden
   Brennstoff und die mögliche Ersparnis
+- **Letzter Kauf** – trage Datum, Menge und Gesamtpreis ein und sieh, was dieselbe Menge
+  heute kostet
 - **Kauf-Alarm** – fertiger Blueprint: Nachricht aufs Handy, wenn ein Brennstoff günstig wird
 - **Dashboard-Karte** inklusive. Sie wird automatisch registriert, ohne manuelle Ressource
 - Funktioniert auch bei Ausfällen: Der letzte Stand bleibt gespeichert und wird als „veraltet“ markiert
@@ -58,7 +60,8 @@ und Home Assistant neu starten.
 3. Bei Erdgas: Jahresverbrauch (Band D1, D2 oder D3)
 
 Über **Konfigurieren** kannst du später Brennstoffe an- und abwählen, zum Beispiel
-Flüssiggas ergänzen, und deine eigenen Preise und deinen Verbrauch eintragen.
+Flüssiggas ergänzen, und deine eigenen Preise, deinen Verbrauch und deinen letzten Kauf
+eintragen.
 
 ## Heizkosten-Rechner
 
@@ -74,6 +77,23 @@ Der Vergleich betrifft nur die Brennstoffkosten. Wirkungsgrade, Wartung und
 Anschaffungskosten einer neuen Heizung sind nicht berücksichtigt. Flüssiggas ist nicht
 dabei, weil es dafür keinen amtlichen Heizgas-Preis gibt.
 
+## Letzter Kauf
+
+Trage unter **Konfigurieren** im letzten Schritt ein, wann du zuletzt wie viel gekauft und
+was du insgesamt bezahlt hast: Heizöl und Flüssiggas in Litern, Pellets in Tonnen. Bei
+Erdgas nimmst du Datum, Verbrauch und Betrag der letzten Abrechnung. Die Karte zeigt dann
+deinen damaligen Preis, was dieselbe Menge heute kostet, und die Differenz.
+
+Beispiel: 3.000 L Heizöl für 3.600 € sind 120,00 €/100 L. Bei heute 175,01 €/100 L kostet
+dieselbe Menge 5.250 €, also 1.650 € mehr (+45,8 %).
+
+Verglichen wird immer mit dem aktuellen amtlichen Preis, auch wenn du einen eigenen Preis
+eingetragen hast. Er ist ein Durchschnitt, dein Angebot vor Ort kann abweichen.
+
+Beim Flüssiggas wäre ein direkter Vergleich irreführend, weil der amtliche Preis für Autogas
+gilt. Dort wird dein Preis mit der Entwicklung des Autogas-Preises seit dem Kauf
+fortgeschrieben. Das Ergebnis ist eine Schätzung und auf der Karte so gekennzeichnet.
+
 ## Sensoren
 
 Für jeden Brennstoff entsteht ein Gerät mit diesen Sensoren:
@@ -85,6 +105,8 @@ Für jeden Brennstoff entsteht ein Gerät mit diesen Sensoren:
 | Veränderung | `2,2 %` | Gegenüber der Vorwoche bzw. dem Vormonat |
 | Preisbewertung | `Teuer` | Günstig / Normal / Teuer im Vergleich zu 12 Monaten |
 | Kosten pro Jahr | `4.375 €` | Nur mit Heizkosten-Rechner, nicht bei Flüssiggas |
+| Differenz zum letzten Kauf | `1.650 €` | Nur mit eingetragenem Kauf: was dieselbe Menge heute mehr oder weniger kostet |
+| Veränderung seit letztem Kauf | `45,8 %` | Nur mit eingetragenem Kauf |
 
 Bei mehreren Brennstoffen im Vergleich kommt das Gerät **Heizkostenvergleich** dazu, mit
 **Günstigster Brennstoff** und, mit Heizkosten-Rechner, **Meine Kosten pro Jahr** und
@@ -181,6 +203,11 @@ Enter the fuel you heat with and your yearly consumption in the options to get t
 yearly cost of every fuel for your heat demand and the potential savings. The
 [price alert blueprint](blueprints/automation/heating_prices/price_alert.yaml) sends a
 notification when a fuel becomes cheap compared with the last 12 months.
+
+You can also enter your last purchase of each fuel (date, amount, total price) to see what
+the same amount costs today at the official price. For natural gas, use your last bill. For
+LPG, your price is carried forward with the motor fuel price trend since the purchase, so
+the result is an estimate.
 
 Install through HACS as a custom repository (category *Integration*), restart, then add
 **Heating Prices** under *Settings → Devices & services*. The UI is available in English
