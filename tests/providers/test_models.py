@@ -190,9 +190,7 @@ def test_purchase_against_todays_price() -> None:
 
 def test_purchase_more_expensive_than_today() -> None:
     """A price that fell since the purchase gives a negative difference."""
-    comparison = purchase_comparison(
-        oil([175.0]), _purchase("2026-10-26", 3000, 6000)
-    )
+    comparison = purchase_comparison(oil([175.0]), _purchase("2026-10-26", 3000, 6000))
     assert comparison is not None
     assert comparison.paid_price == 200.0
     assert comparison.difference == -750
@@ -200,29 +198,31 @@ def test_purchase_more_expensive_than_today() -> None:
 
 
 @pytest.mark.parametrize(
-    ("fuel", "value", "amount", "total", "paid", "cost_now", "unit"),
+    ("price", "purchase", "expected"),
     [
-        ("pellets", 450.0, 6, 2400, 400.0, 2700, "t"),
-        ("natural_gas", 11.5, 20000, 2000, 10.0, 2300, "kWh"),
+        (
+            _price("pellets", 450.0),
+            _purchase("2026-10-01", 6, 2400),
+            (400.0, 2700, "t"),
+        ),
+        (
+            _price("natural_gas", 11.5),
+            _purchase("2026-10-01", 20000, 2000),
+            (10.0, 2300, "kWh"),
+        ),
     ],
 )
 def test_purchase_units(
-    fuel: str,
-    value: float,
-    amount: float,
-    total: float,
-    paid: float,
-    cost_now: int,
-    unit: str,
+    price: FuelPrice,
+    purchase: dict[str, str | float],
+    expected: tuple[float, int, str],
 ) -> None:
     """Paid prices use the fuel's price unit: €/t for pellets, ct/kWh for gas."""
-    comparison = purchase_comparison(
-        _price(fuel, value), _purchase("2026-10-01", amount, total)
-    )
+    comparison = purchase_comparison(price, purchase)
     assert comparison is not None
-    assert comparison.paid_price == paid
-    assert comparison.cost_now == cost_now
-    assert comparison.amount_unit == unit
+    assert (comparison.paid_price, comparison.cost_now, comparison.amount_unit) == (
+        expected
+    )
 
 
 def test_purchase_of_lpg_follows_the_market() -> None:
