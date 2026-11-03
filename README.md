@@ -1,6 +1,6 @@
 # Heating Prices – Heizöl, Pellets, Erdgas & Flüssiggas für Home Assistant
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz/)
 [![Validate](https://github.com/F30onAir/ha-heating-prices/actions/workflows/validate.yml/badge.svg)](https://github.com/F30onAir/ha-heating-prices/actions/workflows/validate.yml)
 [![Tests](https://github.com/F30onAir/ha-heating-prices/actions/workflows/tests.yml/badge.svg)](https://github.com/F30onAir/ha-heating-prices/actions/workflows/tests.yml)
 
@@ -46,6 +46,12 @@ Käufe sind Beispiele.*
 ### Über HACS (empfohlen)
 
 [![Repository in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=F30onAir&repository=ha-heating-prices&category=integration)
+
+1. HACS öffnen und nach **Heating Prices** suchen
+2. **Heating Prices** herunterladen und Home Assistant neu starten
+
+Alternativ als benutzerdefiniertes Repository, zum Beispiel wenn die Suche die Integration
+nicht findet:
 
 1. HACS öffnen → oben rechts **⋮ → Benutzerdefinierte Repositories**
 2. `https://github.com/F30onAir/ha-heating-prices` mit Typ **Integration** hinzufügen
@@ -216,6 +222,14 @@ veröffentlicht das Oil Bulletin keinen Wert.
 **Wärmepreis:** Umrechnung mit 10 kWh pro Liter Heizöl und 4,9 kWh pro kg Pellets
 (Heizwert). Wirkungsgrade der Heizung sind nicht berücksichtigt.
 
+## Unterstützen
+
+Die Integration und alle Funktionen sind kostenlos. Wenn sie dir hilft, kannst du die
+Entwicklung freiwillig mit einem Kaffee unterstützen. Der Beitrag gilt allein der
+Entwicklung, nicht den Preisdaten.
+
+<a href="https://buymeacoffee.com/f30onair"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>
+
 ## Haftungsausschluss
 
 Alle Angaben ohne Gewähr. Die Preise sind Durchschnittswerte, dein Angebot vor Ort kann
@@ -249,9 +263,14 @@ the same amount costs today at the official price. For natural gas, use your las
 LPG, your price is carried forward with the motor fuel price trend since the purchase, so
 the result is an estimate.
 
-Install through HACS as a custom repository (category *Integration*), restart, then add
-**Heating Prices** under *Settings → Devices & services*. The UI is available in English
-and German.
+Install through HACS: search for **Heating Prices**, download it and restart.
+Alternatively, add this repository to HACS as a custom repository (category *Integration*).
+Then add **Heating Prices** under *Settings → Devices & services*. The UI is available in
+English and German.
+
+The integration and all its features are free. If it helps you, you can support its
+development with a voluntary [coffee](https://buymeacoffee.com/f30onair). Contributions go
+towards development, not towards the price data.
 
 ## License
 
