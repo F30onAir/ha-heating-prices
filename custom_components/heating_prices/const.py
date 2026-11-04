@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "heating_prices"
-VERSION: Final = "1.0.1"
+VERSION: Final = "1.0.2"
 
 PROJECT_URL: Final = "https://github.com/F30onAir/ha-heating-prices"
 USER_AGENT: Final = f"HomeAssistant-HeatingPrices/{VERSION} (+{PROJECT_URL})"
